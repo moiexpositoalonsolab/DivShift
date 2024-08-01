@@ -1,5 +1,5 @@
 """
-File: crisp_datasetransforms.py
+File: moco_divshift_dataset.py
 ------------------
 Defines the PyTorch dataset classes.
 """
@@ -64,25 +64,27 @@ class GaussianBlur:
 
 
 class NMVPretrainDataset(Dataset):
-    def __init__(self, base_dir, aug_plus=True, data_split="train", filter_rs=False):
+    def __init__(self, base_dir, aug_plus=True, data_split="!supervised", filter_rs=False):
         """
         Initialize the dataset by reading the csv file and creating a mapping from image name to label. 
         Args:
         - base_dir (string): directory holding data
-        - data_split (string): train, validation, or test
+        - data_split (string): column title for split (with ! to reverse), '' for no split
         """
-        self.data_split = data_split
-        self.csv_file = f"{base_dir}{data_split}/observations_FINAL.csv" # new dataset
-        self.gl_dir = f"{base_dir}{data_split}/images/"
-        df = pd.read_csv(self.csv_file)
+        self.base_dir = base_dir
+        states = ['alaska', 'arizona', 'baja_california', 'baja_california_sur', 'british_columbia', 'california', 'nevada', 'oregon', 'sonora', 'washington', 'yukon']
+        df = Pd.concat({state_name : pd.read_csv(f'{base_dir}/{state_name}/observations_postGL.csv') for state_name in states})
+        if (len(data_split) > 0 and data_split[0] == '!'):
+            self.df = df[~df[data_split[1:]] & df['download_success'] == 'yes']
+        elif (len(data_split > 0]:
+            self.df = df[df[data_split] & df['download_success'] == 'yes']
+        else:
+            self.df = df[df['download_success'] == 'yes']
         
         if filter_rs:
             # leave only one row for each observation
-            df = df[df.rs_classification]
+            # df = df[df.rs_classification]
 
-        self.ground_level = df.gl_path.values # this is new dataset
-
-        
         self.imagenet_means = IMAGENET_MEANS
         self.imagenet_stds = IMAGENET_STDS
         self.gl_normalize = transforms.Normalize(self.imagenet_means, self.imagenet_stds)
@@ -157,6 +159,7 @@ class NMVPretrainDataset(Dataset):
         """
         Return the image at the given index. 
         """
+        self.gl_dir = f"{base_dir}{data_split}/images/"
 
         # ground level image      
         gl_img = self.load_image(idx)

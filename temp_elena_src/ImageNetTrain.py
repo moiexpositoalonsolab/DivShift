@@ -240,7 +240,7 @@ def train(args, save_dir, full_exp_id, exp_id):
                 i += 1
         
         # Get test data
-        test_csv_loc = args.data_dir + "observations_predownload.csv"
+        test_csv_loc = args.data_dir + "/observations_predownload.csv"
         #TODO add logic for different train/test splits
         if (args.skip_test == 'TODO some shift'):
             with open('TODO rows to skip', 'r') as f:
