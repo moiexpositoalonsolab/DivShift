@@ -296,7 +296,7 @@ def train(args, save_dir, full_exp_id, exp_id):
     best_acc = 0.0
     for epoch in range(args.num_epochs):
         print(f'starting epoch {epoch}')
-        train_log = train_finetune(args, model, device, finetune_loader, optimizer, epoch, train_log, countTrainBatch, writer)
+        train_log = train(args, model, device, finetune_loader, optimizer, epoch, train_log, countTrainBatch, writer)
         test_log = test(model, device, test_loader, epoch, test_log, countTestBatch, writer)
         writer.add_scalar('Top-1 Test/Accuracy', test_log['1accuracy'][epoch], epoch)
         writer.add_scalar('Top-5 Test/Accuracy', test_log['5accuracy'][epoch], epoch)

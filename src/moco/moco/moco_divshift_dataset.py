@@ -21,8 +21,8 @@ from PIL import Image
 from glob import glob
 import re
 from PIL import ImageFilter
-import cv2
-from tfrecord.torch.dataset import MultiTFRecordDataset
+#import cv2
+#from tfrecord.torch.dataset import MultiTFRecordDataset
 
 # ----------------- Data augmentation parameters ----------------- #
 
@@ -36,17 +36,6 @@ IMAGENET_STDS = [0.229, 0.224, 0.225]
 
 global RESIZE
 RESIZE  = (256,256)
-
-
-# for Auto-Arborist dataset 
-AA_DESCRIPTION = {'tree/genus/label': 'int',
-'tree/longitude': 'float',
-'tree/genus/genus': 'byte',
-'streetlevel/encoded': 'byte',
-'tree/latitude': 'float',
-'tree/id' : 'byte',
-'aerial/encoded': 'byte',
-'tree/idx': 'byte',}
 
 class GaussianBlur:
     """Gaussian blur augmentation in SimCLR https://arxiv.org/abs/2002.05709"""
@@ -64,7 +53,7 @@ class GaussianBlur:
 
 
 class NMVPretrainDataset(Dataset):
-    def __init__(self, base_dir, aug_plus=True, data_split="!supervised", filter_rs=False):
+    def __init__(self, base_dir, aug_plus=True, data_split="!supervised"):
         """
         Initialize the dataset by reading the csv file and creating a mapping from image name to label. 
         Args:
@@ -73,17 +62,13 @@ class NMVPretrainDataset(Dataset):
         """
         self.base_dir = base_dir
         states = ['alaska', 'arizona', 'baja_california', 'baja_california_sur', 'british_columbia', 'california', 'nevada', 'oregon', 'sonora', 'washington', 'yukon']
-        df = Pd.concat({state_name : pd.read_csv(f'{base_dir}/{state_name}/observations_postGL.csv') for state_name in states})
+        df = pd.concat({state_name : pd.read_csv(f'{base_dir}/{state_name}/observations_postGL.csv') for state_name in states})
         if (len(data_split) > 0 and data_split[0] == '!'):
             self.df = df[~df[data_split[1:]] & df['download_success'] == 'yes']
-        elif (len(data_split > 0]:
+        elif len(data_split) > 0:
             self.df = df[df[data_split] & df['download_success'] == 'yes']
         else:
             self.df = df[df['download_success'] == 'yes']
-        
-        if filter_rs:
-            # leave only one row for each observation
-            # df = df[df.rs_classification]
 
         self.imagenet_means = IMAGENET_MEANS
         self.imagenet_stds = IMAGENET_STDS
@@ -116,9 +101,8 @@ class NMVPretrainDataset(Dataset):
         
 
     def load_image(self, idx):
-
         
-        x = Image.open(f"{self.gl_dir}{self.ground_level[idx]}").convert('RGB') # new dataet
+        x = Image.open(self.img_loc).convert('RGB') # new dataet
         image_array = np.array(x) 
 
         # remove transparency dimension if it exists 
@@ -159,10 +143,15 @@ class NMVPretrainDataset(Dataset):
         """
         Return the image at the given index. 
         """
-        self.gl_dir = f"{base_dir}{data_split}/images/"
+        
+        state = self.df.iloc[idx]['state_name']
+        photo_id = self.img_labels.iloc[idx]['photo_id']
+        folder_num = str(photo_id_train // 1000000)
+        
+        self.img_loc = f"{base_dir}/{state}/{folder_num}/{photo_id}.png"
 
         # ground level image      
-        gl_img = self.load_image(idx)
+        gl_img = self.load_image(self, idx)
         q, k = gl_img
         q = q.float()
         k = k.float()
@@ -177,90 +166,12 @@ class CustomRotation(object):
         angle = np.random.choice(self.angles)
         return transforms.functional.rotate(img, angle.item())
     
-    
-class NMVRSPretrainDataset(Dataset):
-    def __init__(self, base_dir, data_split="train", filter_rs=False):
-        """
-        Initialize the dataset by reading the csv file and creating a mapping from image name to label. 
-        Args:
-        - base_dir (string): directory holding data
-        - data_split (string): train, validation, or test
-        """
-        self.data_split = data_split
-        self.csv_file = f"{base_dir}{data_split}/observations_FINAL.csv" # new dataset
-        self.rs_dir = f"{base_dir}{data_split}/remote_sensing/"
-        df = pd.read_csv(self.csv_file)
-        
-        if filter_rs:
-            # leave only one row for each observation
-            df = df[df.rs_classification]
-
-        self.remote_sensing = df.rs_path.values # new dataset
-        self.rs_key = df.observation_uuid.values # new dataset
-    
-        self.rs_img_means = RS_IMG_MEANS
-        self.rs_img_stds = RS_IMG_STDS
-        self.rs_normalize = transforms.Normalize(self.rs_img_means, self.rs_img_stds)
-
-        self.transforms = transforms.Compose([
-            transforms.RandomCrop((100, 100)),
-            transforms.RandomHorizontalFlip(.5),
-            transforms.RandomVerticalFlip(.5),
-            CustomRotation()
-        ])
-    
-    
-    def load_rs(self, idx, normalize=True):
-        
-        rs_npz_obj = np.load(f"{self.rs_dir}{self.remote_sensing[idx]}") 
-        rs_npy_name = str(self.rs_key[idx]) 
-        rs_img = rs_npz_obj[rs_npy_name] 
-        # normalize
-        if normalize:
-            rs_img = rs_img / 255.0
-        return torch.tensor(rs_img)
-
-        
-    def __len__(self):
-        """
-        Return the length of the dataset
-        """
-        
-        return len(self.remote_sensing)
-
-        
-    def __getitem__(self, idx):
-        """
-        Return the image at the given index. 
-        """
-        
-        # remote sensing image 
-        rs_img = self.load_rs(idx)
-        
-        # create positive pair
-        rs_img1 = self.transforms(rs_img)
-        rs_img2 = self.transforms(rs_img)
-        
-        # typecast to ensure smooth loading onto model
-        rs_img1 = rs_img1.type(torch.float32)
-        rs_img2 = rs_img2.type(torch.float32)
-        
-        # normalize image
-        rs_img1 = self.rs_normalize(rs_img1)
-        rs_img2 = self.rs_normalize(rs_img2)
-    
-        return (rs_img1, rs_img2)
-    
-    
 
     
     
 # ----------------- AA functions ----------------- #
 
-
-
-
-        
+"""        
 def decode_gl_image(features, resize=(256, 256)):
     # get BGR image from bytes
     gl = cv2.imdecode(np.asarray(bytearray(features['streetlevel/encoded']), dtype="uint8"),cv2.IMREAD_COLOR)
@@ -274,21 +185,7 @@ def decode_gl_image(features, resize=(256, 256)):
     # gl = transforms.functional.resize(gl, resize, antialias=True)
     features['streetlevel/encoded'] = gl
     return features
-
-def decode_rs_image(features, resize=(256,256)):    
-    # get BGR image from bytes
-    av = cv2.imdecode(np.asarray(bytearray(features['aerial/encoded']), dtype="uint8"),cv2.IMREAD_COLOR)
-    # convert BGR to std RGB
-    av = cv2.cvtColor(av, cv2.COLOR_BGR2RGB)
-    av = Image.fromarray(av)
-    # av = torch.tensor(av)
-    # av = transforms.functional.convert_image_dtype(av)
-    # # av = transforms.functional.to_dtype(av, dtype=torch.float, scale=True)
-    # av = av.permute((2,0,1))
-    # av = transforms.functional.resize(av, resize, antialias=True)
-    features['aerial/encoded'] = av
-    return features
-
+"""
 def check_index(base_dir, splits):
     
     for file in splits.keys():
@@ -333,7 +230,7 @@ def generate_splits(base_dir, split, probabilities, cities : list=None):
     return splits
 
 def aa_collate_pretrain_gl(batch):
-    # ulgy, but says that wer'e always using mocov2 augmentations which we are
+    # ulgy, but says that we're always using mocov2 augmentations which we are
     aug_plus = True
     if aug_plus:
         # MoCo v2's aug: similar to SimCLR https://arxiv.org/abs/2002.05709
@@ -391,12 +288,7 @@ def aa_collate_finetune_gl(batch):
     gl, label = torch.stack(gl),torch.tensor(np.stack(label))
     return gl, label
 
-def aa_collate_finetune_rs(batch):
-    rs, label = zip(*[( b['aerial/encoded'], b['tree/genus/label']) for b in batch])
-    rs, label = torch.stack(rs), torch.tensor(np.stack(label))
-    return rs, label
-
-
+"""
 def config_aa(base_dir, view, split='train', cities=None, resize=RESIZE, infinite=False):
     global RESIZE
     if resize != RESIZE:
@@ -416,15 +308,6 @@ def config_aa(base_dir, view, split='train', cities=None, resize=RESIZE, infinit
                                        AA_DESCRIPTION,
                                        transform=decode_gl_image, 
                                        infinite=infinite, 
-                                       shuffle_queue_size=2) 
-    elif view == 'remote_sensing':
-        return nrecords, MultiTFRecordDataset(tfrecord_pattern, 
-                                       index_pattern, 
-                                       splits, 
-                                       AA_DESCRIPTION,
-                                       transform=decode_rs_image, 
-                                       infinite=infinite, 
-                                       shuffle_queue_size=2) 
+                                       shuffle_queue_size=2)
     
-    
-    
+"""    

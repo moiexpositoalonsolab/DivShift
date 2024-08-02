@@ -37,8 +37,8 @@ class LabelsDataset(Dataset):
     
     def __getitem__(self, idx):
         # determine image path
-        photo_id_train = self.img_labels.iloc[idx]['photo_id']
-        folder_num_train = photo_id_train // 1000000
+        photo_id = self.img_labels.iloc[idx]['photo_id']
+        folder_num_train = photo_id // 1000000
         state = self.img_labels.iloc[idx]['state_name']
         img_path = self.img_dir + "/" + state + "/" + str(folder_num_train) + "/" + str(photo_id_train) + ".png"
 

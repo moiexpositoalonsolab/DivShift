@@ -1,0 +1,7 @@
+Traceback (most recent call last):
+  File "/home/esierra/./DivShift/src/moco/main_moco.py", line 515, in <module>
+    main()
+  File "/home/esierra/./DivShift/src/moco/main_moco.py", line 224, in main
+    main_worker(args.gpu, ngpus_per_node, args)
+  File "/home/esierra/./DivShift/src/moco/main_moco.py", line 291, in main_worker
+    raise NotImplementedError("Only DistributedDataParallel is supported.")

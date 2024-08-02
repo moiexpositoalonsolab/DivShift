@@ -20,7 +20,7 @@ import warnings
 from types import SimpleNamespace
 
 import moco.builder
-import moco.moco_crisp_dataset
+import moco.moco_divshift_dataset
 import torch
 import torch.backends.cudnn as cudnn
 import torch.distributed as dist
@@ -35,11 +35,6 @@ import torchvision.models as models
 import torchvision.transforms as transforms
 from torch.utils.tensorboard import SummaryWriter
 
-paths = SimpleNamespace(
-	MODELS = '/scr/gillespl/models/',
-        DATA = '/scr/gillespl/',
-	RUNS = '/scr/gillespl/runs/')
-
 model_names = sorted(
     name
     for name in models.__dict__
@@ -47,11 +42,10 @@ model_names = sorted(
 )
 
 parser = argparse.ArgumentParser(description="PyTorch ImageNet Training")
-parser.add_argument("--data_dir", type=str, help="Location of directory where train/test/val split are saved to.", required=True)
+parser.add_argument("--data_dir", type=str, help="Location of directory where data is saved to.", required=True)
+parser.add_argument("--save_dir", type=str, help="Directory to save model weights and logs", required=True)
 parser.add_argument('--testing', action='store_true', help='dont log the run to tensorboard')
-
-parser.add_argument('--view', help='which view to use', choices=['ground_level', 'remote_sensing'], default='ground_level')
-parser.add_argument('--dataset', help='which dataset to use', choices=['AA', 'NMV'], default='NMV')
+parser.add_argument('--dataset', help='which dataset to use', choices=['DivShift'], default='DivShift')
 
 parser.add_argument(
     "-a",
@@ -261,7 +255,6 @@ def main_worker(gpu, ngpus_per_node, args):
     print("=> creating model '{}'".format(args.arch))
     model = moco.builder.MoCo(
         models.__dict__[args.arch],
-        args.view,
         args.dataset,
         args.moco_dim,
         args.moco_k,
@@ -335,34 +328,24 @@ def main_worker(gpu, ngpus_per_node, args):
     cudnn.benchmark = True
 
     # Data loading code
-    # TODO: add view logic to NMV dataloader as well
-    if args.dataset == 'AA':
-        nrecords, train_dataset = moco.moco_crisp_dataset.config_aa(args.data_dir, args.view, split='train', resize=(256,256))
-    elif args.view == 'ground_level':
-        train_dataset = moco.moco_crisp_dataset.NMVPretrainDataset(args.data_dir, args.aug_plus, 'train')
-    elif args.view == 'remote_sensing':
-        train_dataset = moco.moco_crisp_dataset.NMVRSPretrainDataset(args.data_dir,'train')
-    shuffle = (args.distributed) and (args.dataset != 'AA')
-    if shuffle:
-        train_sampler = torch.utils.data.distributed.DistributedSampler(train_dataset)
-    else:
-        train_sampler = None
+    if args.dataset == "DivShift":
+        train_dataset = moco.moco_divshift_dataset.NMVPretrainDataset(args.data_dir)
+    
+    train_sampler = None
     
     train_loader = torch.utils.data.DataLoader(
         train_dataset,
         batch_size=args.batch_size,
-        shuffle=shuffle,
-        num_workers=args.workers,
-        pin_memory=True,
-        sampler=train_sampler,
-        drop_last=True,
-        collate_fn=moco.moco_crisp_dataset.aa_collate_pretrain_gl if args.view == 'ground_level' else moco.moco_crisp_dataset.aa_collate_pretrain_rs
+        shuffle=True,
+        num_workers=args.workers
     )
+    
     da = datetime.now().strftime('%Y_%m_%d_%H-%M-%S')
-    v = 'gl' if args.view == 'ground_level' else 'rs'
-    save_dir = f"{paths.MODELS}moco/{v}_moco/"
-    log_dir = f"{paths.RUNS}/{da}_{socket.gethostname()}_moco_{args.view}"
-    json_fname = f"{save_dir}{da}_hyperparams.json"
+    save_dir = f"{args.save_dir}"
+    log_dir = f"{args.save_dir}/{da}/logs"
+    if not os.path.exists(log_dir):
+        os.makedirs(log_dir)
+    json_fname = f"{save_dir}/{da}/hyperparams.json"
     with open(json_fname, 'w') as f:
         tosave = vars(args)
         json.dump(tosave, f, indent=4)
@@ -373,10 +356,8 @@ def main_worker(gpu, ngpus_per_node, args):
             train_sampler.set_epoch(epoch)
         adjust_learning_rate(optimizer, epoch, args)
         # train for one epoch
-        if args.dataset == 'NMV':
+        if args.dataset == 'DivShift':
             j = train(train_loader, model, criterion, optimizer, epoch, args, tb_writer, j)
-        elif args.dataset == "AA":
-            j = train_aa(train_loader, nrecords, model, criterion, optimizer, epoch, args, tb_writer, j)
 
         if not args.multiprocessing_distributed or (
             args.multiprocessing_distributed and args.rank % ngpus_per_node == 0
@@ -391,7 +372,7 @@ def main_worker(gpu, ngpus_per_node, args):
                 is_best=False,
                 date=da, 
                 save_dir=save_dir,
-                filename=f"{save_dir}{da}_{args.view}_{args.dataset}_checkpoint_{epoch}.pth.tar",
+                filename=f"{save_dir}{da}_{args.dataset}_checkpoint_{epoch}.pth.tar",
             )
 
 
@@ -451,65 +432,6 @@ def train(train_loader, model, criterion, optimizer, epoch, args, tb_writer, j):
             progress.display(i)
 
     return j
-
-def train_aa(train_loader, nrecords, model, criterion, optimizer, epoch, args, tb_writer, j):
-    batch_time = AverageMeter("Time", ":6.3f")
-    data_time = AverageMeter("Data", ":6.3f")
-    losses = AverageMeter("Loss", ":.4e")
-    top1 = AverageMeter("Acc@1", ":6.2f")
-    top5 = AverageMeter("Acc@5", ":6.2f")
-    progress = ProgressMeter(
-        nrecords// args.batch_size,
-        [batch_time, data_time, losses, top1, top5],
-        prefix="Epoch: [{}]".format(epoch),
-    )
-    iterloader = iter(train_loader)
-    # switch to train mode
-    model.train()
-
-    end = time.time()
-    for i in range(nrecords//args.batch_size):
-        im_q, im_k = next(iterloader)
-        # measure data loading time
-        data_time.update(time.time() - end)
-
-        if args.gpu is not None:
-            #images[0] = images[0].cuda(args.gpu, non_blocking=True)
-            #images[1] = images[1].cuda(args.gpu, non_blocking=True)
-            im_q = im_q.cuda(args.gpu, non_blocking=True)
-            im_k = im_k.cuda(args.gpu, non_blocking=True)
-
-        # compute output
-        # output, target = model(im_q=images[0].unsqueeze(0), im_k=images[1].unsqueeze(0))
-        output, target = model(im_q=im_q, im_k=im_k)
-        loss = criterion(output, target)
-
-        # acc1/acc5 are (K+1)-way contrast classifier accuracy
-        # measure accuracy and record loss
-        acc1, acc5 = accuracy(output, target, topk=(1, 5))
-        losses.update(loss.item(), im_q.size(0))
-        top1.update(acc1[0], im_q.size(0))
-        top5.update(acc5[0], im_q.size(0))
-        if tb_writer is not None:
-            tb_writer.add_scalar("loss", loss.item(), j)
-            tb_writer.add_scalar("top1", acc1[0], j)
-            tb_writer.add_scalar("top5", acc5[0], j)
-
-        # compute gradient and do SGD step
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
-        j += 1
-
-        # measure elapsed time
-        batch_time.update(time.time() - end)
-        end = time.time()
-
-        if i % args.print_freq == 0:
-            progress.display(i)
-
-    return j
-
 
 
 def save_checkpoint(state, is_best, date, save_dir, filename="checkpoint.pth.tar"):
