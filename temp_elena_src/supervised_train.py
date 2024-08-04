@@ -1,11 +1,12 @@
 """
-File: ImageNetTrain.py
+File: supervised_train.py
 Authors: Elena Sierra & Lauren Gillespie
 ------------------
-Benchmark DivShift on ImageNet
+Benchmark DivShift using supervised ResNets
 """
 
-import ImageNetDataset
+import supervised_dataset
+import supervised_utils as utils
 
 # Torch packages / functions
 import torch
@@ -155,9 +156,9 @@ def test_one_epoch(model, device, test_loader, epoch, logger, count, SummaryWrit
     labels = labels.detach().cpu()
     probits = F.softmax(all_logits, dim=1)
     probits = probits.detach().cpu()
-    top1, top5 = negatives_utils.obs_topK(labels, probits, K=5) 
-    spectop1 = negatives_utils.species_topK(labels, probits, K=1)
-    spectop5 = negatives_utils.species_topK(labels, probits, K=5)
+    top1, top5 = utils.obs_topK(labels, probits, K=5) 
+    spectop1 = utils.species_topK(labels, probits, K=1)
+    spectop5 = utils.species_topK(labels, probits, K=5)
     logger['1spec_acc'][epoch] = spectop1
     logger['5spec_acc'][epoch] = spectop5
     """
@@ -239,7 +240,7 @@ def train(args, save_dir, full_exp_id, exp_id):
         
         train_image_dir = args.data_dir
         
-        train_dset = ImageNetDataset.LabelsDataset(train_df, train_image_dir,
+        train_dset = supervised_dataset.LabelsDataset(train_df, train_image_dir,
                                                    label_dict, args.to_classify, 
                                                    transform=transform, 
                                                    target_transform=None)
@@ -258,7 +259,7 @@ def train(args, save_dir, full_exp_id, exp_id):
         test_df = test_df.loc[test_df[args.to_classify].isin(label_dict)]
         test_image_dir = args.data_dir
         
-        test_dset = ImageNetDataset.LabelsDataset(test_df, test_image_dir, 
+        test_dset = supervised_dataset.LabelsDataset(test_df, test_image_dir, 
                                                   label_dict, args.to_classify, 
                                                   transform=transform, 
                                                   target_transform=None)

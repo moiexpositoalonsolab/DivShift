@@ -1,5 +1,5 @@
 """
-File: ImageNetDataset.py
+File: supervised_dataset.py
 Authors: Elena Sierra & Lauren Gillespie
 ------------------
 Defines the PyTorch dataset classes
