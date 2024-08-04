@@ -16,6 +16,7 @@ import torch.nn.functional as F
 from torch.utils.data import DataLoader, RandomSampler
 from torch.utils.tensorboard import SummaryWriter
 import torchvision.models as models
+import torchvision.transforms as transforms
 
 # Miscellaneous packages
 import os
@@ -27,6 +28,7 @@ import argparse
 from tqdm import tqdm, trange
 from datetime import datetime
 import pandas as pd
+import dask.dataframe as dd
 
 import pdb
 
@@ -216,40 +218,47 @@ def train(args, save_dir, full_exp_id, exp_id):
                                                                   0.224, 
                                                                   0.225]),])
         # Get training data
-        train_csv_loc = args.data_dir + "/observations_predownload.csv"
+        states = ['alaska', 'arizona', 'baja_california', 'baja_california_sur', 'british_columbia', 
+                  'california', 'nevada', 'oregon', 'sonora', 'washington', 'yukon']
+        ddf = dd.concat([dd.read_csv(f'{args.data_dir}/{state_name}/observations_postGL.csv') for state_name in states])
         #TODO add logic for different train/test splits
-        if (args.skip_train == 'TODO some shift'):
-            with open('TODO rows to skip', 'r') as f:
-                skip = json.load(f)
-                train_csv = pd.read_csv(finetune_csv_loc, skiprows=skip)
-        train_image_dir = args.data_dir
-        
-        train_dset = ImageNetDataset.LabelsDataset(finetune_csv, finetune_image_dir,
-                                                   label_dict, args.to_classify, 
-                                                   transform=transform, 
-                                                   target_transform=None)
-        train_loader = DataLoader(finetune_dset, args.batch_size, 
-                                  shuffle=True, num_workers=args.processes)
+        if (args.train_split == '2019-2021'):
+            train_df = ddf[ddf['supervised'] & 
+               (ddf['download_success'] == 'yes') & 
+               ((dd.to_datetime(ddf['date']).dt.year == 2019) | (dd.to_datetime(ddf['date']).dt.year == 2020) | (dd.to_datetime(ddf['date']).dt.year == 2021))].compute()
+        else:
+            raise ValueError('Please select a valid train_split')
         
         # associate class with index
         i = 0
-        for row in range(train_csv.shape[0]):
-            label = train_csv.iloc[row][args.to_classify]
+        for row in range(train_df.shape[0]):
+            label = train_df.iloc[row][args.to_classify]
             if (label not in label_dict):
-                label_dict[specie] = i
+                label_dict[label] = i
                 i += 1
         
+        train_image_dir = args.data_dir
+        
+        train_dset = ImageNetDataset.LabelsDataset(train_df, train_image_dir,
+                                                   label_dict, args.to_classify, 
+                                                   transform=transform, 
+                                                   target_transform=None)
+        train_loader = DataLoader(train_dset, args.batch_size, 
+                                  shuffle=True, num_workers=args.processes)
+        
         # Get test data
-        test_csv_loc = args.data_dir + "/observations_predownload.csv"
         #TODO add logic for different train/test splits
-        if (args.skip_test == 'TODO some shift'):
-            with open('TODO rows to skip', 'r') as f:
-                skip = json.load(f)
-                test_csv = pd.read_csv(test_csv_loc, skiprows=skip)
-        test_csv = test_csv.loc[test_csv[args.to_classify].isin(label_dict)]
+        if (args.test_split == '2022'):
+            test_df = ddf[ddf['supervised'] & (ddf['download_success'] == 'yes') & (dd.to_datetime(ddf['date']).dt.year == 2022)].compute()
+        elif (args.test_split == '2023'):
+            test_df = ddf[ddf['supervised'] & (ddf['download_success'] == 'yes') & (dd.to_datetime(ddf['date']).dt.year == 2023)].compute()
+        else:
+            raise ValueError('Please select a valid test_split')
+        
+        test_df = test_df.loc[test_df[args.to_classify].isin(label_dict)]
         test_image_dir = args.data_dir
         
-        test_dset = ImageNetDataset.LabelsDataset(test_csv, test_image_dir, 
+        test_dset = ImageNetDataset.LabelsDataset(test_df, test_image_dir, 
                                                   label_dict, args.to_classify, 
                                                   transform=transform, 
                                                   target_transform=None)
@@ -261,7 +270,10 @@ def train(args, save_dir, full_exp_id, exp_id):
     print(f"Experiment running on device: {device}")
 
     # model
-    model = models.resnet50(pretrained=True)
+    if (args.model == 'ResNet50'):
+        model = models.resnet50(pretrained=True)
+    else:
+        model = models.resnet18(pretrained=True)
     params = model.parameters()
     if (args.train_type == 'feature_extraction'):
         for param in params:
@@ -296,8 +308,8 @@ def train(args, save_dir, full_exp_id, exp_id):
     best_acc = 0.0
     for epoch in range(args.num_epochs):
         print(f'starting epoch {epoch}')
-        train_log = train(args, model, device, finetune_loader, optimizer, epoch, train_log, countTrainBatch, writer)
-        test_log = test(model, device, test_loader, epoch, test_log, countTestBatch, writer)
+        train_log = train_one_epoch(args, model, device, train_loader, optimizer, epoch, train_log, countTrainBatch, writer)
+        test_log = test_one_epoch(model, device, test_loader, epoch, test_log, countTestBatch, writer)
         writer.add_scalar('Top-1 Test/Accuracy', test_log['1accuracy'][epoch], epoch)
         writer.add_scalar('Top-5 Test/Accuracy', test_log['5accuracy'][epoch], epoch)
         countTrainBatch += len(finetune_loader)
@@ -319,16 +331,19 @@ if __name__ == "__main__":
     parser.add_argument('--dataset', type=str, help='DivShift', default='DivShift')
     parser.add_argument('--checkpoint_freq', type=int, help='how often to checkpoint model weights (best model is saved)', default=5)
     parser.add_argument('--optimizer', type=str, help='which optimizer (Adam, AdamW, SGD, or RMSprop)', choices=['Adam', 'AdamW', 'SGD', 'RMSprop'], default='SGD')
+    parser.add_argument('--model', type=str, help='which model', choices=['ResNet18', 'ResNet50'], default='ResNet18')
     parser.add_argument("--exp_id", type=str, help="Experiment name for logging purposes.", required=True)
-    parser.add_argument("--test_split", type=str, help="What test data split to use.", choices=['test', 'validation'], default='test')
     parser.add_argument("--num_epochs", type=int, help='Number of epochs to train for.', default=10)
     parser.add_argument("--batch_size", type=int, help="Examples per batch", default=60)
     parser.add_argument("--test_batch_size", type=int, help="Examples per batch", default=1000)
     parser.add_argument("--learning_rate", type=float, help="Learning rate for optimizer.", default=0.001)
     parser.add_argument('--processes', type=int, help='Number of workers for dataloader.', default=0)
-    parser.add_argument('--train_type', type=str, help="all-layers or one-layer", required=True)
-    parser.add_argument('--skip_train', type=str, help="which rows to skip for training", required=True)
-    parser.add_argument('--skip_test', type=str, help="which rows to skip for testing", required=True)
+    parser.add_argument('--train_type', type=str, help="all-layers or one-layer", choices=['feature_extraction', 'full_finetune'], required=True)
+    parser.add_argument('--train_split', type=str, help="which split to train on (2019-2021)", required=True)
+    parser.add_argument('--test_split', type=str, help="which split to test on (2022)", required=True)
+    parser.add_argument('--to_classify', type=str, help="which column to classify", default='name')
+    parser.add_argument('--testing', action='store_true', help='dont log the run to tensorboard')
+    parser.add_argument('--display_batch_loss', action='store_true', help='Display loss at each batch in the training bar')
     
     args = parser.parse_args()
     # create dir for saving
