@@ -64,7 +64,7 @@ class NMVPretrainDataset(Dataset):
         states = ['alaska', 'arizona', 'baja_california', 'baja_california_sur', 'british_columbia', 'california', 'nevada', 'oregon', 'sonora', 'washington', 'yukon']
         df = pd.concat({state_name : pd.read_csv(f'{base_dir}/{state_name}/observations_postGL.csv') for state_name in states})
         if (len(data_split) > 0 and data_split[0] == '!'):
-            self.df = df[~df[data_split[1:]] & df['download_success'] == 'yes']
+            self.df = df[(~df[data_split[1:]]) & (df['download_success'] == 'yes')]
         elif len(data_split) > 0:
             self.df = df[df[data_split] & df['download_success'] == 'yes']
         else:
@@ -136,7 +136,7 @@ class NMVPretrainDataset(Dataset):
         """
         Return the length of the dataset
         """
-        return len(self.ground_level)
+        return len(self.df)
 
         
     def __getitem__(self, idx):
@@ -145,13 +145,13 @@ class NMVPretrainDataset(Dataset):
         """
         
         state = self.df.iloc[idx]['state_name']
-        photo_id = self.img_labels.iloc[idx]['photo_id']
-        folder_num = str(photo_id_train // 1000000)
+        photo_id = str(self.df.iloc[idx]['photo_id'])
+        folder_num = photo_id[:3]
         
-        self.img_loc = f"{base_dir}/{state}/{folder_num}/{photo_id}.png"
+        self.img_loc = f"{self.base_dir}/{state}/{folder_num}/{photo_id}.png"
 
         # ground level image      
-        gl_img = self.load_image(self, idx)
+        gl_img = self.load_image(idx)
         q, k = gl_img
         q = q.float()
         k = k.float()

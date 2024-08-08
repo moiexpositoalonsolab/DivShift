@@ -2,7 +2,7 @@
 File: supervised_train.py
 Authors: Elena Sierra & Lauren Gillespie
 ------------------
-Benchmark DivShift using supervised ResNets
+Benchmark different domain shifts using supervised ResNets
 """
 
 import supervised_dataset
@@ -84,39 +84,7 @@ def save_weights(model, optimizer, epoch, freq, top1, bestacc, save_dir, steps, 
                         'test_log': test_log
                         }, f"{save_dir}{exp_id}_best_model.pth")
 
-
-
-
 # ----------------- Training ----------------- #
-
-def train_one_epoch(args, model, device, train_loader, optimizer, epoch, logger, count, SummaryWriter):
-
-    writer = SummaryWriter
-
-    model.train()
-    # logs loss per-batch to the console
-    # stats is a range object from zero to len(train_loader)
-    stats = trange(len(train_loader))
-    indexer = epoch * len(train_loader)
-    for batch_idx, (data, target)  in zip(stats, train_loader):
-        data, target = data.to(device), target.to(device)
-        optimizer.zero_grad()
-        output = model(data)
-        # standard softmax cross-entropy loss
-        loss = F.cross_entropy(output, target)
-        loss.backward()
-        optimizer.step()
-        # save train loss to tqdm bar
-        stats.set_description(f'epoch {epoch}')
-        stats.set_postfix(loss=loss.item())
-        logger[batch_idx+indexer] = loss.item()
-        writer.add_scalar('Finetune/Loss', loss.item(), count)
-        count += 1
-    stats.close()
-    return logger
-
-
-
 def test_one_epoch(model, device, test_loader, epoch, logger, count, SummaryWriter):
     #logging
     writer = SummaryWriter
@@ -282,9 +250,11 @@ def train(args, save_dir, full_exp_id, exp_id):
 
     # model
     if (args.model == 'ResNet50'):
-        model = models.resnet50(pretrained=True)
+        model = models.resnet50()
+        model.load_state_dict(torch.load(args.pretrain_saved_weights)["model_state_dict"], strict=False)
     else:
-        model = models.resnet18(pretrained=True)
+        model = models.resnet18()
+        model.load_state_dict(torch.load(args.pretrain_saved_weights)["model_state_dict"], strict=False)
     params = model.parameters()
     if (args.train_type == 'feature_extraction'):
         for param in params:
