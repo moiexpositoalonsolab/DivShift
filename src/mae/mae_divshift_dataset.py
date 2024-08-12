@@ -34,25 +34,20 @@ RESIZE  = (224,224)
 
 
 
-class NMVPretrainGLDataset(Dataset):
-    def __init__(self, base_dir, data_split="train", filter_rs=False):
+class DivShiftPretrainDataset(Dataset):
+    def __init__(self, base_dir, exclude_supervised=True):
         """
         Initialize the dataset by reading the csv file and creating a mapping from image name to label. 
         Args:
         - base_dir (string): directory holding data
         - data_split (string): train, validation, or test
         """
-        self.data_split = data_split
-        self.csv_file = f"{base_dir}{data_split}/observations_FINAL.csv" # new dataset
-        self.gl_dir = f"{base_dir}{data_split}/images/"
-        df = pd.read_csv(self.csv_file)
-        
-        if filter_rs:
-            # leave only one row for each observation
-            df = df[df.rs_classification]
-
-        self.ground_level = df.gl_path.values # this is new dataset
-
+        self.base_dir = base_dir
+        df = pd.read_csv(f"{base_dir}allobs_postGL_presplit.csv") # TODO: 
+        if not exclude_supervised:
+            self.df = df[~df.supervised]
+            self.df.reset_index(inplace=True)
+    
         
         self.imagenet_means = IMAGENET_MEANS
         self.imagenet_stds = IMAGENET_STDS
@@ -69,7 +64,7 @@ class NMVPretrainGLDataset(Dataset):
     def load_image(self, idx):
 
         
-        x = Image.open(f"{self.gl_dir}{self.ground_level[idx]}").convert('RGB') # new dataet
+        x = Image.open(self.img_loc).convert('RGB') # new dataet
         image_array = np.array(x) 
 
         # remove transparency dimension if it exists 
@@ -102,7 +97,7 @@ class NMVPretrainGLDataset(Dataset):
         """
         Return the length of the dataset
         """
-        return len(self.ground_level)
+        return len(self.df)
 
         
     def __getitem__(self, idx):
@@ -110,8 +105,13 @@ class NMVPretrainGLDataset(Dataset):
         Return the image at the given index. 
         """
 
-        # ground level image      
-        gl_img = self.load_image(idx)
-        return gl_img 
+        state = self.df.iloc[idx]['state_name']
+        photo_id = str(self.df.iloc[idx]['photo_id'])
+        folder_num = photo_id[:3]
+        
+        self.img_loc = f"{self.base_dir}/{state}/{folder_num}/{photo_id}.png"
+        
+        img = self.load_image(idx)
+        return img 
 
     

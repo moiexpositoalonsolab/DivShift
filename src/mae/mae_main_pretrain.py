@@ -22,7 +22,7 @@ import torch
 import torch.backends.cudnn as cudnn
 from torch.utils.tensorboard import SummaryWriter
 import torchvision.transforms as transforms
-import mae_crisp_dataset as dataset
+import mae_divshift_dataset as dataset
 
 import timm
 
@@ -39,9 +39,11 @@ from engine_pretrain import train_one_epoch
 
 
 paths = SimpleNamespace(
-	MODELS = '/scr/gillespl/models/',
-        DATA = '/scr/gillespl/new_dataset/',
+	MODELS = '/scr/gillespl/west_coast_models/',
+        DATA = '/scr/gillespl/west_coast_dataset/',
 	RUNS = '/scr/gillespl/runs/')
+
+
 def get_args_parser():
     parser = argparse.ArgumentParser('MAE pre-training', add_help=False)
     parser.add_argument('--batch_size', default=64, type=int,
@@ -81,8 +83,7 @@ def get_args_parser():
     # Dataset parameters
     parser.add_argument("--data_dir", type=str, help="Location of directory where train/test/val split are saved to.", required=True)
     parser.add_argument('--testing', action='store_true', help='dont log the run to tensorboard')
-    parser.add_argument('--view', help='which view to use', choices=['ground_level'], default='ground_level')
-    parser.add_argument('--dataset', help='which dataset to use', choices=['NMV'], default='NMV')
+    parser.add_argument('--dataset', help='which dataset to use', choices=['DivShift'], default='DivShift')
 
     parser.add_argument('--device', default='cuda',
                         help='device to use for training / testing')
@@ -125,7 +126,7 @@ def main(args, save_dir, log_dir, da):
     cudnn.benchmark = True
 
     # simple augmentation
-    dataset_train = dataset.NMVPretrainGLDataset(args.data_dir)
+    dataset_train = dataset.DivShiftPretrainDataset(args.data_dir, args.exclude_supervised)
 
     if True:  # args.distributed:
         num_tasks = misc.get_world_size()
@@ -215,8 +216,7 @@ if __name__ == '__main__':
     args = get_args_parser()
     args = args.parse_args()
     da = datetime.datetime.now().strftime('%Y_%m_%d_%H-%M-%S')
-    v = 'gl' if args.view == 'ground_level' else 'rs'
-    save_dir = f"{paths.MODELS}mae/{v}_mae/"
+    save_dir = f"{paths.MODELS}mae/"
     log_dir = f"{paths.RUNS}/{da}_{socket.gethostname()}_mae_{args.view}"
     json_fname = f"{save_dir}{da}_mae_hyperparams.json"
     with open(json_fname, 'w') as f:

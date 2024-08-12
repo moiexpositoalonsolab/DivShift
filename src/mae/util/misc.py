@@ -295,7 +295,7 @@ def get_grad_norm_(parameters, norm_type: float = 2.0) -> torch.Tensor:
 
 def save_model(args, epoch, model, model_without_ddp, optimizer, loss_scaler, save_dir, da):
     if loss_scaler is not None:
-        checkpoint_path = f'{save_dir}{da}_{args.view}_{args.dataset}_mae_checkpoint-e{epoch}.pth'
+        checkpoint_path = f'{save_dir}{args.dataset}_{da}_mae_checkpoint-e{epoch}.pth'
         to_save = {
             'model': model_without_ddp.state_dict(),
             'optimizer': optimizer.state_dict(),
@@ -307,7 +307,7 @@ def save_model(args, epoch, model, model_without_ddp, optimizer, loss_scaler, sa
         save_on_master(to_save, checkpoint_path)
     else:
         client_state = {'epoch': epoch}
-        model.save_checkpoint(save_dir=save_dir, tag=f'{da}_{args.view}_{args.dataset}_mae_checkpoint-e{epoch}', client_state=client_state)
+        model.save_checkpoint(save_dir=save_dir, tag=f'{args.dataset}_{da}_mae_checkpoint-e{epoch}', client_state=client_state)
 
 
 def load_model(args, model_without_ddp, optimizer, loss_scaler):
