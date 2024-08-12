@@ -1,5 +1,4 @@
-#!/usr/bin/env python
-
+# DivShift MoCov2
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 
 # This source code is licensed under the MIT license found in the
@@ -262,41 +261,15 @@ def main_worker(gpu, ngpus_per_node, args):
         args.moco_t,
         args.mlp,
     )
-    print(model)
+    # print(model)
 
-    if args.distributed:
-        # For multiprocessing distributed, DistributedDataParallel constructor
-        # should always set the single device scope, otherwise,
-        # DistributedDataParallel will use all available devices.
-        if args.gpu is not None:
-            torch.cuda.set_device(args.gpu)
-            model.cuda(args.gpu)
-            # When using a single GPU per process and per
-            # DistributedDataParallel, we need to divide the batch size
-            # ourselves based on the total number of GPUs we have
-            args.batch_size = int(args.batch_size / ngpus_per_node)
-            args.workers = int((args.workers + ngpus_per_node - 1) / ngpus_per_node)
-            model = torch.nn.parallel.DistributedDataParallel(
-                model, device_ids=[args.gpu]
-            )
-        else:
-            model.cuda()
-            # DistributedDataParallel will divide and allocate batch_size to all
-            # available GPUs if device_ids are not set
-            model = torch.nn.parallel.DistributedDataParallel(model)
-    elif args.gpu is not None:
-        torch.cuda.set_device(args.gpu)
-        model = model.cuda(args.gpu)
-        # comment out the following line for debugging
-        #raise NotImplementedError("Only DistributedDataParallel is supported.")
-    else:
-        # AllGather implementation (batch shuffle, queue update, etc.) in
-        # this code only supports DistributedDataParallel.
-        raise NotImplementedError("Only DistributedDataParallel is supported.")
-
+    # device
+    #device = torch.device(f"cuda:{args.device}" if args.device >=0 else "cpu")
+    torch.cuda.set_device(gpu)
+    model = model.cuda(gpu)
+    
     # define loss function (criterion) and optimizer
     criterion = nn.CrossEntropyLoss().cuda(args.gpu)
-
     optimizer = torch.optim.SGD(
         model.parameters(),
         args.lr,
@@ -304,59 +277,35 @@ def main_worker(gpu, ngpus_per_node, args):
         weight_decay=args.weight_decay,
     )
 
-    # optionally resume from a checkpoint
-    if args.resume:
-        if os.path.isfile(args.resume):
-            print("=> loading checkpoint '{}'".format(args.resume))
-            if args.gpu is None:
-                checkpoint = torch.load(args.resume)
-            else:
-                # Map model to be loaded to specified single gpu.
-                loc = "cuda:{}".format(args.gpu)
-                checkpoint = torch.load(args.resume, map_location=loc)
-            args.start_epoch = checkpoint["epoch"]
-            model.load_state_dict(checkpoint["state_dict"])
-            optimizer.load_state_dict(checkpoint["optimizer"])
-            print(
-                "=> loaded checkpoint '{}' (epoch {})".format(
-                    args.resume, checkpoint["epoch"]
-                )
-            )
-        else:
-            print("=> no checkpoint found at '{}'".format(args.resume))
-
     cudnn.benchmark = True
 
     # Data loading code
     if args.dataset == "DivShift":
-        train_dataset = moco.moco_divshift_dataset.DivShiftPretrainDataset(args.data_dir, args.aug_plus, args.split)
+        train_dataset = moco.moco_divshift_dataset.NMVPretrainDataset(args.data_dir, aug_plus=True, data_split="!supervised")
     
-    if args.distributed:
-        train_sampler = torch.utils.data.distributed.DistributedSampler(train_dataset)
-    else:
-        train_sampler = None
+    train_sampler = None
     
     train_loader = torch.utils.data.DataLoader(
         train_dataset,
         batch_size=args.batch_size,
-        shuffle=(train_sampler is None),
+        shuffle=True,
         num_workers=args.workers
     )
     
     da = datetime.now().strftime('%Y_%m_%d_%H-%M-%S')
-    save_dir = f"{args.save_dir}{da}/"
-    log_dir = f"{save_dir}/logs"
+    save_dir = f"{args.save_dir}"
+    log_dir = f"{args.save_dir}/{da}/logs"
     if not os.path.exists(log_dir):
         os.makedirs(log_dir)
-    json_fname = f"{save_dir}/hyperparams.json"
+    json_fname = f"{save_dir}/{da}/hyperparams.json"
     with open(json_fname, 'w') as f:
         tosave = vars(args)
         json.dump(tosave, f, indent=4)
     tb_writer = None if args.testing else SummaryWriter(log_dir=log_dir)
     j = 0
     for epoch in range(args.start_epoch, args.epochs):
-        if shuffle:
-            train_sampler.set_epoch(epoch)
+        #if shuffle:
+            #train_sampler.set_epoch(epoch)
         adjust_learning_rate(optimizer, epoch, args)
         # train for one epoch
         if args.dataset == 'DivShift':
@@ -437,7 +386,7 @@ def train(train_loader, model, criterion, optimizer, epoch, args, tb_writer, j):
     return j
 
 
-def save_checkpoint(state, is_best, date, save_dir, filename=f"{date}_checkpoint.pth.tar"):
+def save_checkpoint(state, is_best, date, save_dir, filename="checkpoint.pth.tar"):
     torch.save(state, filename)
     if is_best:
         shutil.copyfile(filename, f"{save_dir}{date}_model_best.pth.tar")

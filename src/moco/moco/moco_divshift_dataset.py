@@ -48,7 +48,7 @@ class GaussianBlur:
 
 
 class DivShiftPretrainDataset(Dataset):
-    def __init__(self, base_dir, aug_plus=True, data_split="!supervised"):
+    def __init__(self, base_dir, aug_plus=True, exclude_supervised=True):
         """
         Initialize the dataset by reading the csv file and creating a mapping from image name to label. 
         Args:
@@ -56,14 +56,10 @@ class DivShiftPretrainDataset(Dataset):
         - data_split (string): column title for split (with ! to reverse), '' for no split
         """
         self.base_dir = base_dir
-        states = ['alaska', 'arizona', 'baja_california', 'baja_california_sur', 'british_columbia', 'california', 'nevada', 'oregon', 'sonora', 'washington', 'yukon']
-        df = pd.concat({state_name : pd.read_csv(f'{base_dir}/{state_name}/observations_postGL.csv') for state_name in states})
-        if (len(data_split) > 0 and data_split[0] == '!'):
-            self.df = df[(~df[data_split[1:]]) & (df['download_success'] == 'yes')]
-        elif len(data_split) > 0:
-            self.df = df[df[data_split] & df['download_success'] == 'yes']
-        else:
-            self.df = df[df['download_success'] == 'yes']
+        df = pd.read_csv(f"{base_dir}allobs_postGL_presplit.csv") # TODO: eventually make this the split csv
+        if not exclude_supervised:
+            self.df = df[~df.supervised]
+            self.df.reset_index(inplace=True)
 
         self.imagenet_means = IMAGENET_MEANS
         self.imagenet_stds = IMAGENET_STDS
