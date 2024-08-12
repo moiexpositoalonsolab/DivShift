@@ -442,7 +442,7 @@ def train(train_loader, model, criterion, optimizer, epoch, args, tb_writer, j):
     return j
 
 
-def save_checkpoint(state, is_best, date, save_dir, filename=f"{date}_checkpoint.pth.tar"):
+def save_checkpoint(state, is_best, date, save_dir, filename=f"checkpoint.pth.tar"):
     torch.save(state, filename)
     if is_best:
         shutil.copyfile(filename, f"{save_dir}{date}_model_best.pth.tar")
