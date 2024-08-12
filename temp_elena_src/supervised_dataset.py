@@ -1,5 +1,5 @@
 """
-File: ImageNetDataset.py
+File: supervised_dataset.py
 Authors: Elena Sierra & Lauren Gillespie
 ------------------
 Defines the PyTorch dataset classes
@@ -37,10 +37,10 @@ class LabelsDataset(Dataset):
     
     def __getitem__(self, idx):
         # determine image path
-        photo_id_train = self.img_labels.iloc[idx]['photo_id']
-        folder_num_train = photo_id_train // 1000000
+        photo_id = str(self.img_labels.iloc[idx]['photo_id'])
+        folder = photo_id[:3]
         state = self.img_labels.iloc[idx]['state_name']
-        img_path = self.img_dir + "/" + state + "/" + str(folder_num_train) + "/" + str(photo_id_train) + ".png"
+        img_path = self.img_dir + "/" + state + "/" + folder + "/" + photo_id + ".png"
 
         # open and transform image
         img_og = Image.open(img_path)
@@ -56,4 +56,4 @@ class LabelsDataset(Dataset):
         if self.target_transform:
             label = self.target_transform(label)
         
-        return tensor_image, label
+        return tensor_img, label
