@@ -40,7 +40,7 @@ from engine_pretrain import train_one_epoch
 
 paths = SimpleNamespace(
 	MODELS = '/scr/gillespl/west_coast_models/',
-        DATA = '/scr/gillespl/west_coast_dataset/',
+    DATA = '/scr/gillespl/west_coast_dataset/',
 	RUNS = '/scr/gillespl/runs/')
 
 
@@ -83,6 +83,8 @@ def get_args_parser():
     # Dataset parameters
     parser.add_argument("--data_dir", type=str, help="Location of directory where train/test/val split are saved to.", required=True)
     parser.add_argument('--testing', action='store_true', help='dont log the run to tensorboard')
+
+    parser.add_argument('--exclude_supervised', action='store_true', help='only train with unlabeled / not verified obs')
     parser.add_argument('--dataset', help='which dataset to use', choices=['DivShift'], default='DivShift')
 
     parser.add_argument('--device', default='cuda',

@@ -349,7 +349,7 @@ def main_worker(gpu, ngpus_per_node, args):
     )
     
     da = datetime.now().strftime('%Y_%m_%d_%H-%M-%S')
-    save_dir = f"{args.save_dir}{da}/"
+    save_dir = f"{args.save_dir}moco/{da}/"
     log_dir = f"{save_dir}/logs"
     if not os.path.exists(log_dir):
         os.makedirs(log_dir)
