@@ -262,7 +262,7 @@ def main_worker(gpu, ngpus_per_node, args):
         args.moco_t,
         args.mlp,
     )
-    # print(model)
+    print(model)
 
     if args.distributed:
         # For multiprocessing distributed, DistributedDataParallel constructor
@@ -329,23 +329,26 @@ def main_worker(gpu, ngpus_per_node, args):
 
     # Data loading code
     if args.dataset == "DivShift":
-        train_dataset = moco.moco_divshift_dataset.NMVPretrainDataset(args.data_dir)
+        train_dataset = moco.moco_divshift_dataset.DivShiftPretrainDataset(args.data_dir, args.aug_plus, args.split)
     
-    train_sampler = None
+    if args.distributed:
+        train_sampler = torch.utils.data.distributed.DistributedSampler(train_dataset)
+    else:
+        train_sampler = None
     
     train_loader = torch.utils.data.DataLoader(
         train_dataset,
         batch_size=args.batch_size,
-        shuffle=True,
+        shuffle=(train_sampler is None),
         num_workers=args.workers
     )
     
     da = datetime.now().strftime('%Y_%m_%d_%H-%M-%S')
-    save_dir = f"{args.save_dir}"
-    log_dir = f"{args.save_dir}/{da}/logs"
+    save_dir = f"{args.save_dir}{da}/"
+    log_dir = f"{save_dir}/logs"
     if not os.path.exists(log_dir):
         os.makedirs(log_dir)
-    json_fname = f"{save_dir}/{da}/hyperparams.json"
+    json_fname = f"{save_dir}/hyperparams.json"
     with open(json_fname, 'w') as f:
         tosave = vars(args)
         json.dump(tosave, f, indent=4)
@@ -434,7 +437,7 @@ def train(train_loader, model, criterion, optimizer, epoch, args, tb_writer, j):
     return j
 
 
-def save_checkpoint(state, is_best, date, save_dir, filename="checkpoint.pth.tar"):
+def save_checkpoint(state, is_best, date, save_dir, filename=f"{date}_checkpoint.pth.tar"):
     torch.save(state, filename)
     if is_best:
         shutil.copyfile(filename, f"{save_dir}{date}_model_best.pth.tar")
