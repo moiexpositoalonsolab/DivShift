@@ -223,26 +223,24 @@ def train(args, save_dir, full_exp_id, exp_id):
                                                                   0.224, 
                                                                   0.225]),])
         # Get training data
-        ddf = pd.read_csv(f'{args.data_dir}/splits.csv')
+        ddf = pd.read_csv(f'{args.data_dir}/splits_lauren.csv')
         #TODO add logic for different train/test splits
         if (args.train_split in ddf.columns):
-            train_df = ddf[(ddf['supervised'] == True) & 
-               (ddf['download_success'] == 'yes') &
-               (ddf[args.train_split] == 'train')]
+            train_df = ddf[(ddf['supervised'] == True) & (ddf[args.train_split] == 'train')]
         elif (args.train_split == '2019-2021'):
             train_df = ddf[(ddf['supervised'] == True) & 
-               (ddf['download_success'] == 'yes') & 
                ((pd.to_datetime(ddf['date']).dt.year == 2019) | (pd.to_datetime(ddf['date']).dt.year == 2020) | (pd.to_datetime(ddf['date']).dt.year == 2021))]
         else:
             raise ValueError('Please select a valid train_split')
         
         # associate class with index
-        i = 0
-        for row in range(train_df.shape[0]):
-            label = train_df.iloc[row][args.to_classify]
-            if (label not in label_dict):
-                label_dict[label] = i
-                i += 1
+        label_dict = {spec: i for i, spec in enumerate(sorted(train_df[train_df.supervised][args.to_classify].unique().tolist()))}
+        # i = 0
+        # for row in range(train_df.shape[0]):
+        #     label = train_df.iloc[row][args.to_classify]
+        #     if (label not in label_dict):
+        #         label_dict[label] = i
+        #         i += 1
         
         train_image_dir = args.data_dir
         
@@ -254,11 +252,8 @@ def train(args, save_dir, full_exp_id, exp_id):
                                   shuffle=True, num_workers=args.processes)
         
         # Get test data
-        #TODO add logic for different train/test splits
         if (args.test_split in ddf.columns):
-            test_df = ddf[(ddf['supervised'] == True) & 
-               (ddf['download_success'] == 'yes') &
-               (ddf[args.test_split] == 'test')]
+            test_df = ddf[(ddf['supervised'] == True) & (ddf[args.test_split] == 'test')]
         elif (args.test_split == '2022'):
             test_df = ddf[(ddf['supervised'] == True) & (ddf['download_success'] == 'yes') & (pd.to_datetime(ddf['date']).dt.year == 2022)]
         elif (args.test_split == '2023'):
@@ -338,6 +333,33 @@ def train(args, save_dir, full_exp_id, exp_id):
 
 
 if __name__ == "__main__":
+    split_choices = ['2019-2021', 
+                     '2022',
+                     '2023',
+                    'not_city_nature',
+                    'city_nature',
+                    'alaska_socioeco',
+                    'arizona_socioeco',
+                    'baja_california_socioeco',
+                    'baja_california_sur_socioeco',
+                    'british_columbia_socioeco',
+                    'california_socioeco',
+                    'nevada_socioeco',
+                    'oregon_socioeco',
+                    'sonora_socioeco',
+                    'washington_socioeco',
+                    'yukon_socioeco',
+                    'quality_obs',
+                    'casual_obs',
+                    'footprint_wilderness',
+                    'footprint_modified',
+                    'inat2021',
+                    'inat2021mini',
+                    'imagenet',
+                    'spatial_split',
+                    'taxonomic_balanced',
+                    'taxonomic_unbalanced']
+
     parser = argparse.ArgumentParser(description="Specify cli arguments.", allow_abbrev=True)
 
     parser.add_argument('--device', type=int, help='what device number to use (-1 for cpu)', default=-1)
@@ -353,8 +375,8 @@ if __name__ == "__main__":
     parser.add_argument("--learning_rate", type=float, help="Learning rate for optimizer.", default=0.001)
     parser.add_argument('--processes', type=int, help='Number of workers for dataloader.', default=0)
     parser.add_argument('--train_type', type=str, help="all-layers or one-layer", choices=['feature_extraction', 'full_finetune'], required=True)
-    parser.add_argument('--train_split', type=str, help="which split to train on", required=True)
-    parser.add_argument('--test_split', type=str, help="which split to test on", required=True)
+    parser.add_argument('--train_split', type=str, help="which split to train on", required=True, choices=split_choices)
+    parser.add_argument('--test_split', type=str, help="which split to test on", required=True, choices=split_choices)
     parser.add_argument('--to_classify', type=str, help="which column to classify", default='name')
     parser.add_argument('--testing', action='store_true', help='dont log the run to tensorboard')
     parser.add_argument('--display_batch_loss', action='store_true', help='Display loss at each batch in the training bar')
