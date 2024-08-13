@@ -364,6 +364,7 @@ if __name__ == "__main__":
 
     parser.add_argument('--device', type=int, help='what device number to use (-1 for cpu)', default=-1)
     parser.add_argument("--data_dir", type=str, help="Location of directory where train/test/val split are saved to.", required=True) 
+    parser.add_argument("--save_dir", type=str, help="Location of directory where models saved to.", default='./') 
     parser.add_argument('--dataset', type=str, help='DivShift', default='DivShift')
     parser.add_argument('--checkpoint_freq', type=int, help='how often to checkpoint model weights (best model is saved)', default=5)
     parser.add_argument('--optimizer', type=str, help='which optimizer (Adam, AdamW, SGD, or RMSprop)', choices=['Adam', 'AdamW', 'SGD', 'RMSprop'], default='SGD')
@@ -386,7 +387,7 @@ if __name__ == "__main__":
     date = datetime.now().strftime('%Y-%m-%d')
     full_exp_id = f"{args.exp_id}_{date}"
 
-    save_dir = f'./finetune_results/{full_exp_id}/'
+    save_dir = f'{args.save_dir}finetune_results/{full_exp_id}/'
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
 
