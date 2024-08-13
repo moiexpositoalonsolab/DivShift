@@ -211,6 +211,7 @@ def test_one_epoch(model, device, test_loader, epoch, logger, count, SummaryWrit
 def train(args, save_dir, full_exp_id, exp_id):
 
     # dataset
+    print('setting up dataset')
     label_dict = {}
     if args.dataset == "DivShift":
         # Standard transform for ImageNet
@@ -250,7 +251,7 @@ def train(args, save_dir, full_exp_id, exp_id):
                                                    target_transform=None)
         train_loader = DataLoader(train_dset, args.batch_size, 
                                   shuffle=True, num_workers=args.processes)
-        
+        print('setting up test dataset')
         # Get test data
         if (args.test_split in ddf.columns):
             test_df = ddf[(ddf['supervised'] == True) & (ddf[args.test_split] == 'test')]
@@ -276,6 +277,7 @@ def train(args, save_dir, full_exp_id, exp_id):
     print(f"Experiment running on device: {device}")
 
     # model
+    print('setting up model')
     if (args.model == 'ResNet50'):
         model = models.resnet50(pretrained=True)
     else:
@@ -302,7 +304,7 @@ def train(args, save_dir, full_exp_id, exp_id):
         optimizer = optim.RMSprop(params, lr=args.learning_rate)
     else:
         raise NotImplemented
-
+    print('starting training')
     # for logging purposes
     log_dir = f"{save_dir}logger"
     writer = None if args.testing else SummaryWriter(log_dir=log_dir, comment=f"{full_exp_id}")
@@ -389,6 +391,7 @@ if __name__ == "__main__":
 
     save_dir = f'{args.save_dir}finetune_results/{full_exp_id}/'
     if not os.path.exists(save_dir):
+        print(f"making dir {save_dir}")
         os.makedirs(save_dir)
 
     # save hyperparameters
