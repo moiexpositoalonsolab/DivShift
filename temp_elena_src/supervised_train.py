@@ -235,15 +235,14 @@ def train(args, save_dir, full_exp_id, exp_id):
             raise ValueError('Please select a valid train_split')
         
         # associate class with index
-        print(f"train df is this size: {train_df.shape} with {len(train_df['name'].unique())} labels")
+        print(f"train df is split {args.train_split} with this size: {train_df.shape} with {len(train_df['name'].unique())} labels")
         label_dict = {spec: i for i, spec in enumerate(sorted(train_df[args.to_classify].unique().tolist()))}
-        print(f"label dict is {len(label_dict)} with {min(list(label_dict.values()))} min label name and {max(list(label_dict.values()))} max label name")
-        # i = 0
-        # for row in range(train_df.shape[0]):
-        #     label = train_df.iloc[row][args.to_classify]
-        #     if (label not in label_dict):
-        #         label_dict[label] = i
-        #         i += 1
+        #i = 0
+        #for row in range(train_df.shape[0]):
+        #    label = train_df.iloc[row][args.to_classify]
+        #    if (label not in label_dict):
+        #        label_dict[label] = i
+        #        i += 1
         
         train_image_dir = args.data_dir
         
@@ -266,7 +265,7 @@ def train(args, save_dir, full_exp_id, exp_id):
         
         test_df = test_df.loc[test_df[args.to_classify].isin(label_dict)]
 
-        print(f"test df is this size: {test_df.shape} with {len(test_df['name'].unique())} labels")
+        print(f"test df is spilt {args.test_split} of this size: {test_df.shape} with {len(test_df['name'].unique())} labels")
         
         test_image_dir = args.data_dir
         
@@ -404,4 +403,5 @@ if __name__ == "__main__":
     with open(json_fname, 'w') as f:
         json.dump(vars(args), f, indent=4)
 
+    print('starting training')
     train(args, save_dir, full_exp_id, args.exp_id)
