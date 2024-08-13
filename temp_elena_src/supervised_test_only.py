@@ -37,52 +37,12 @@ import pdb
 # ----------------- Utilities ----------------- #
 
 
-def save_weights(model, optimizer, epoch, freq, top1, bestacc, save_dir, steps, train_log, test_log, lr_scheduler=None):
+def save_weights(save_dir, test_log):
     exp_id = save_dir.split('/')[-2]
-    model_path= f"{save_dir}{exp_id}_epoch{epoch}.pth"
-    if (epoch+1) % freq == 0:
-        if lr_scheduler is None:
-            torch.save({
-                        'epoch': epoch,
-                        'model_state_dict': model.state_dict(),
-                        'optimizer_state_dict': optimizer.state_dict(),
-                        'step' : steps,
-                        'train_log': train_log,
-                        'test_log': test_log
-                        }, model_path)
-        else:
-            torch.save({
-                        'epoch': epoch,
-                        'model_state_dict': model.state_dict(),
-                        'optimizer_state_dict': optimizer.state_dict(),
-                        'step' : steps,
-                        "lr_scheduler": lr_scheduler.state_dict(),
-                        'learning_rate' : lr_scheduler.get_last_lr(),
-                        'train_log': train_log,
-                        'test_log': test_log
-                        }, model_path)
-
-    if top1 > bestacc:
-        if lr_scheduler is None:
-            torch.save({
-                        'epoch': epoch,
-                        'model_state_dict': model.state_dict(),
-                        'optimizer_state_dict': optimizer.state_dict(),
-                        'step' : steps,
-                        'train_log': train_log,
-                        'test_log': test_log
-                        }, f"{save_dir}{exp_id}_best_model.pth")
-        else:
-            torch.save({
-                        'epoch': epoch,
-                        'model_state_dict': model.state_dict(),
-                        'optimizer_state_dict': optimizer.state_dict(),
-                        'step' : steps,
-                        "lr_scheduler": lr_scheduler.state_dict(),
-                        'learning_rate' : lr_scheduler.get_last_lr(),
-                        'train_log': train_log,
-                        'test_log': test_log
-                        }, f"{save_dir}{exp_id}_best_model.pth")
+    model_path= f"{save_dir}{exp_id}.pth"
+    torch.save({
+                'test_log': test_log
+                }, model_path)
 
 # ----------------- Training ----------------- #
 def test_one_epoch(model, device, test_loader, epoch, logger, count, SummaryWriter):
@@ -192,7 +152,6 @@ def train(args, save_dir, full_exp_id, exp_id):
                                                                   0.225]),])
         # Get training data
         ddf = pd.read_csv(f'{args.data_dir}/splits.csv')
-        #TODO add logic for different train/test splits
         if (args.train_split in ddf.columns):
             train_df = ddf[(ddf['supervised'] == True) & 
                (ddf['download_success'] == 'yes') &
@@ -212,17 +171,7 @@ def train(args, save_dir, full_exp_id, exp_id):
                 label_dict[label] = i
                 i += 1
         
-        train_image_dir = args.data_dir
-        
-        train_dset = supervised_dataset.LabelsDataset(train_df, train_image_dir,
-                                                   label_dict, args.to_classify, 
-                                                   transform=transform, 
-                                                   target_transform=None)
-        train_loader = DataLoader(train_dset, args.batch_size, 
-                                  shuffle=True, num_workers=args.processes)
-        
         # Get test data
-        #TODO add logic for different train/test splits
         if (args.test_split in ddf.columns):
             test_df = ddf[(ddf['supervised'] == True) & 
                (ddf['download_success'] == 'yes') &
@@ -251,16 +200,13 @@ def train(args, save_dir, full_exp_id, exp_id):
     # model
     if (args.model == 'ResNet50'):
         model = models.resnet50()
-        model.load_state_dict(torch.load(args.pretrain_saved_weights)["model_state_dict"], strict=False)
+        model.fc = nn.Linear(model.fc.in_features, len(label_dict))
+        model.load_state_dict(torch.load(args.train_saved_weights)["model_state_dict"], strict=False)
     else:
         model = models.resnet18()
-        model.load_state_dict(torch.load(args.pretrain_saved_weights)["model_state_dict"], strict=False)
+        model.fc = nn.Linear(model.fc.in_features, len(label_dict))
+        model.load_state_dict(torch.load(args.train_saved_weights)["model_state_dict"], strict=False)
     params = model.parameters()
-    if (args.train_type == 'feature_extraction'):
-        for param in params:
-            param.requires_grad = False
-        params = model.fc.parameters()
-    model.fc = nn.Linear(model.fc.in_features, len(label_dict))
     
     model.to(device)
 
@@ -278,28 +224,23 @@ def train(args, save_dir, full_exp_id, exp_id):
     # for logging purposes
     log_dir = f"{save_dir}logger"
     writer = None if args.testing else SummaryWriter(log_dir=log_dir, comment=f"{full_exp_id}")
-    train_log, test_log = {}, {}
+    test_log = {}
     test_log['loss'] = {}
     test_log['1accuracy'] = {}
     test_log['5accuracy'] = {}
     test_log['1spec_acc'] = {}
     test_log['5spec_acc'] = {}
-    countTrainBatch = 0
     countTestBatch = 0
     best_acc = 0.0
-    for epoch in range(args.num_epochs):
-        print(f'starting epoch {epoch}')
-        train_log = train_one_epoch(args, model, device, train_loader, optimizer, epoch, train_log, countTrainBatch, writer)
-        test_log = test_one_epoch(model, device, test_loader, epoch, test_log, countTestBatch, writer)
-        writer.add_scalar('Top-1 Test/Accuracy', test_log['1accuracy'][epoch], epoch)
-        writer.add_scalar('Top-5 Test/Accuracy', test_log['5accuracy'][epoch], epoch)
-        countTrainBatch += len(train_loader)
-        countTestBatch += len(test_loader)
-        
-        save_weights(model, optimizer, epoch, args.checkpoint_freq, test_log['1spec_acc'][epoch], best_acc, save_dir, countTrainBatch, train_log, test_log)
-        if test_log['1spec_acc'][epoch] > best_acc:
-            best_acc = test_log['1spec_acc'][epoch]
-
+    epoch = 0
+    
+    print(f'starting test')
+    test_log = test_one_epoch(model, device, test_loader, epoch, test_log, countTestBatch, writer)
+    writer.add_scalar('Top-1 Accuracy', test_log['1accuracy'][epoch], epoch)
+    writer.add_scalar('Top-5 Accuracy', test_log['5accuracy'][epoch], epoch)
+    writer.add_scalar('Top-1 Species Accuracy', test_log['1spec_acc'][epoch], epoch)
+    writer.add_scalar('Top-5 Species Accuracy', test_log['5spec_acc'][epoch], epoch)
+    save_weights(save_dir, test_log)
 
 # ----------------- Runner ----------------- #
 
@@ -309,18 +250,15 @@ if __name__ == "__main__":
 
     parser.add_argument('--device', type=int, help='what device number to use (-1 for cpu)', default=-1)
     parser.add_argument("--data_dir", type=str, help="Location of directory where train/test/val split are saved to.", required=True) 
+    parser.add_argument("--train_saved_weights", type=str, help="Location of pretrain saved weights", default=None)
     parser.add_argument('--dataset', type=str, help='DivShift', default='DivShift')
-    parser.add_argument('--checkpoint_freq', type=int, help='how often to checkpoint model weights (best model is saved)', default=5)
     parser.add_argument('--optimizer', type=str, help='which optimizer (Adam, AdamW, SGD, or RMSprop)', choices=['Adam', 'AdamW', 'SGD', 'RMSprop'], default='SGD')
     parser.add_argument('--model', type=str, help='which model', choices=['ResNet18', 'ResNet50'], default='ResNet18')
     parser.add_argument("--exp_id", type=str, help="Experiment name for logging purposes.", required=True)
-    parser.add_argument("--num_epochs", type=int, help='Number of epochs to train for.', default=10)
-    parser.add_argument("--batch_size", type=int, help="Examples per batch", default=60)
     parser.add_argument("--test_batch_size", type=int, help="Examples per batch", default=1000)
     parser.add_argument("--learning_rate", type=float, help="Learning rate for optimizer.", default=0.001)
     parser.add_argument('--processes', type=int, help='Number of workers for dataloader.', default=0)
-    parser.add_argument('--train_type', type=str, help="all-layers or one-layer", choices=['feature_extraction', 'full_finetune'], required=True)
-    parser.add_argument('--train_split', type=str, help="which split to train on", required=True)
+    parser.add_argument('--train_split', type=str, help="which split the saved weights were trained on", required=True)
     parser.add_argument('--test_split', type=str, help="which split to test on", required=True)
     parser.add_argument('--to_classify', type=str, help="which column to classify", default='name')
     parser.add_argument('--testing', action='store_true', help='dont log the run to tensorboard')
@@ -331,7 +269,7 @@ if __name__ == "__main__":
     date = datetime.now().strftime('%Y-%m-%d')
     full_exp_id = f"{args.exp_id}_{date}"
 
-    save_dir = f'./finetune_results/{full_exp_id}/'
+    save_dir = f'./DivShift_supervised_results/{full_exp_id}/'
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
 
