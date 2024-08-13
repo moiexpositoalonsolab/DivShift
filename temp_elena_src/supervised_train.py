@@ -285,8 +285,6 @@ def train(args, save_dir, full_exp_id, exp_id):
         model = models.resnet50(pretrained=True)
     else:
         model = models.resnet18(pretrained=True)
-        
-    params = model.parameters()
     
     if args.train_type == 'feature_extraction':
         for param in model.parameters():
@@ -294,6 +292,8 @@ def train(args, save_dir, full_exp_id, exp_id):
         model.fc = nn.Linear(model.fc.in_features, len(label_dict))
         for param in model.fc.parameters():
             param.requires_grad = True
+        
+    params = model.parameters()
     
     model.to(device)
 
