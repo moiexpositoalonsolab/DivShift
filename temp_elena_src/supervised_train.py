@@ -235,7 +235,9 @@ def train(args, save_dir, full_exp_id, exp_id):
             raise ValueError('Please select a valid train_split')
         
         # associate class with index
-        label_dict = {spec: i for i, spec in enumerate(sorted(train_df[train_df.supervised][args.to_classify].unique().tolist()))}
+        print(f"train df is this size: {train_df.shape} with {len(train_df['name'].unique())} labels")
+        label_dict = {spec: i for i, spec in enumerate(sorted(train_df[args.to_classify].unique().tolist()))}
+        print(f"label dict is {len(label_dict)} with {min(list(label_dict.values()))} min label name and {max(list(label_dict.values()))} max label name")
         # i = 0
         # for row in range(train_df.shape[0]):
         #     label = train_df.iloc[row][args.to_classify]
@@ -263,6 +265,9 @@ def train(args, save_dir, full_exp_id, exp_id):
             raise ValueError('Please select a valid test_split')
         
         test_df = test_df.loc[test_df[args.to_classify].isin(label_dict)]
+
+        print(f"test df is this size: {test_df.shape} with {len(test_df['name'].unique())} labels")
+        
         test_image_dir = args.data_dir
         
         test_dset = supervised_dataset.LabelsDataset(test_df, test_image_dir, 
