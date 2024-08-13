@@ -287,7 +287,7 @@ def train(args, save_dir, full_exp_id, exp_id):
         model = models.resnet50(pretrained=True)
     else:
         model = models.resnet18(pretrained=True)
-    
+    model.fc = nn.Linear(model.fc.in_features, len(label_dict))
     if args.train_type == 'feature_extraction':
         for param in model.parameters():
             param.requires_grad = False
