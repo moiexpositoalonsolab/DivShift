@@ -192,7 +192,6 @@ def subset_topK(labels, probits, rows_to_keep, K):
     fyo = fyo[rows_to_keep, :]
     return species_topK(fyt, fyo, K=1), species_topK(fyt, fyo, K=K), obs_topK(fyt.clone(), fyo.clone)
 
-
 def rarity_weighted_topK(ytrue, yobs, K):
     nspecs = yobs.shape[1]
     yobs = torch.as_tensor(yobs)
@@ -214,6 +213,7 @@ def rarity_weighted_topK(ytrue, yobs, K):
         spec = specs.get(i)
         if spec is None:
             sas.append(np.nan)
+            denom.append(np.nan)
             continue
         nspecs += 1
         # spoof ytrue for this species
@@ -225,6 +225,8 @@ def rarity_weighted_topK(ytrue, yobs, K):
     
     sas = np.array(sas)
     denom = np.array(denom)
+    print(sas.shape, denom.shape)
     num = sas[~np.isnan(sas)]
-    denom = denom[~np.isnan(sas)]
+    denom = denom[~np.isnan(denom)]
     return (num.sum() / denom.sum())
+
