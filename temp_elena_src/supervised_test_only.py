@@ -151,14 +151,12 @@ def train(args, save_dir, full_exp_id, exp_id):
                                                                   0.224, 
                                                                   0.225]),])
         # Get training data
-        ddf = pd.read_csv(f'{args.data_dir}/splits.csv')
+        ddf = pd.read_csv(f'{args.data_dir}/splits_lauren.csv')
         if (args.train_split in ddf.columns):
             train_df = ddf[(ddf['supervised'] == True) & 
-               (ddf['download_success'] == 'yes') &
                (ddf[args.train_split] == 'train')]
         elif (args.train_split == '2019-2021'):
             train_df = ddf[(ddf['supervised'] == True) & 
-               (ddf['download_success'] == 'yes') & 
                ((pd.to_datetime(ddf['date']).dt.year == 2019) | (pd.to_datetime(ddf['date']).dt.year == 2020) | (pd.to_datetime(ddf['date']).dt.year == 2021))]
         else:
             raise ValueError('Please select a valid train_split')
@@ -174,12 +172,11 @@ def train(args, save_dir, full_exp_id, exp_id):
         # Get test data
         if (args.test_split in ddf.columns):
             test_df = ddf[(ddf['supervised'] == True) & 
-               (ddf['download_success'] == 'yes') &
                (ddf[args.test_split] == 'test')]
         elif (args.test_split == '2022'):
-            test_df = ddf[(ddf['supervised'] == True) & (ddf['download_success'] == 'yes') & (pd.to_datetime(ddf['date']).dt.year == 2022)]
+            test_df = ddf[(ddf['supervised'] == True) & (pd.to_datetime(ddf['date']).dt.year == 2022)]
         elif (args.test_split == '2023'):
-            test_df = ddf[(ddf['supervised'] == True) & (ddf['download_success'] == 'yes') & (pd.to_datetime(ddf['date']).dt.year == 2023)]
+            test_df = ddf[(ddf['supervised'] == True) & (pd.to_datetime(ddf['date']).dt.year == 2023)]
         else:
             raise ValueError('Please select a valid test_split')
         
