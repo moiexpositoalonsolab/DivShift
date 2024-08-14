@@ -407,7 +407,7 @@ if __name__ == "__main__":
         finished = glob.glob(f"{save_dir}{args.exp_id}_epoch*.pth")
         maxepoch = max([int(f.split('epoch')[-1].split('.pth')[0]) for f in finished])
         bestmodel = f"{args.save_dir}/finetune_results/{args.exp_id}/{args.exp_id}_best_model.pth" 
-        bestepoch =  torch.load(modelweights, map_location=torch.device('cpu'))modeldata['epoch']
+        bestepoch =  torch.load(modelweights, map_location=torch.device('cpu'))['epoch']
         if bestepoch > maxepoch:
             epoch = bestepoch
             restart_epoch = 'best_model'
