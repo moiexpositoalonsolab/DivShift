@@ -31,6 +31,32 @@ class LabelsDataset(Dataset):
         self.target_transform = target_transform
         self.label_dict = label_dict
         self.to_classify = to_classify
+
+        # load label map 
+        meta_path = f"{img_dir}/splits_lauren_far_car_rar.json"
+        with open(meta_path, 'r') as file:
+            metadata = json.load(file)
+        # set up groupings for split accuracy rankings
+        far = metadata['far']
+        car = metadata['car']
+        rar = metadata['rar']
+
+        self.farlabs = [self.label_dict[n] for n in far if n in self.label_dict.keys()]
+        self.carlabs = [self.label_dict[n] for n in car if n in self.label_dict.keys()]
+        self.rarlabs = [self.label_dict[n] for n in rar if n in self.label_dict.keys()]
+        print(f"using {len(self.farlabs)} frequent species, {len(self.carlabs)} frequent species, and {len(self.rarlabs)} rare species")
+
+
+        # ecoregions
+        self.l2_ecoregions = {}
+        df = data_frame.reset_index()
+        for ecoregion, smalldf  in df.groupby('l2_ecoregion'):
+            self.l2_ecoregions[ecoregion] = smalldf.index 
+        # land use
+        self.land_use = {}
+        df = data_frame.reset_index()
+        for ecoregion, smalldf  in df.groupby('land_use'):
+            self.land_use[ecoregion] = smalldf.index 
         
     def __len__(self):
         return len(self.img_labels)

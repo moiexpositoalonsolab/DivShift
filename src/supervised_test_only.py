@@ -30,33 +30,99 @@ from tqdm import tqdm, trange
 from datetime import datetime
 import pandas as pd
 import dask.dataframe as dd
-
+from types import SimpleNamespace
 import pdb
 
 
-# ----------------- Utilities ----------------- #
-
-
-def save_weights(save_dir, test_log):
-    exp_id = save_dir.split('/')[-2]
-    model_path= f"{save_dir}{exp_id}.pth"
-    torch.save({
-                'test_log': test_log
-                }, model_path)
-
 # ----------------- Training ----------------- #
-def test_one_epoch(model, device, test_loader, epoch, logger, count, SummaryWriter):
-    #logging
-    writer = SummaryWriter
-    # need to put into eval() mode to ensure model outputs are deterministic
+def inference(args):
+    
+    # dataset
+    print('setting up dataset')
+    label_dict = {}
+    if args.dataset == "DivShift":
+        # Standard transform for ImageNet
+        transform = transforms.Compose([transforms.Resize(256),
+                                        transforms.CenterCrop(224),
+                                        transforms.Normalize(mean=[0.485,
+                                                                   0.456,
+                                                                   0.406],
+                                                             std=[0.229,
+                                                                  0.224,
+                                                                  0.225]),])
+        # Get training data
+        ddf = pd.read_csv(f'{args.data_dir}/splits_lauren.csv')
+        if (args.train_split in ddf.columns):
+            train_df = ddf[(ddf['supervised'] == True) & (ddf[args.train_split] == 'train')]
+        elif (args.train_split == '2019-2021'):
+            train_df = ddf[(ddf['supervised'] == True) &
+               ((pd.to_datetime(ddf['date']).dt.year == 2019) | (pd.to_datetime(ddf['date']).dt.year == 2020) | (pd.to_datetime(ddf['date']).dt.year == 2021))]
+        else:
+            raise ValueError('Please select a valid train_split')
+
+        # associate class with index
+        print(f"train df is this size: {train_df.shape} with {len(train_df['name'].unique())} labels")
+        label_dict = {spec: i for i, spec in enumerate(sorted(train_df[args.to_classify].unique().tolist()))}
+        print(f"label dict is {len(label_dict)} with {min(list(label_dict.values()))} min label name and {max(list(label_dict.values()))} max label name")
+ 
+        print('setting up test dataset')
+        # Get test data
+        if (args.test_split in ddf.columns):
+            test_df = ddf[(ddf['supervised'] == True) & (ddf[args.test_split] == 'test')]
+        elif (args.test_split == '2022'):
+            test_df = ddf[(ddf['supervised'] == True) & (ddf['download_success'] == 'yes') & (pd.to_datetime(ddf['date']).dt.year == 2022)]
+        elif (args.test_split == '2023'):
+            test_df = ddf[(ddf['supervised'] == True) & (ddf['download_success'] == 'yes') & (pd.to_datetime(ddf['date']).dt.year == 2023)]
+        else:
+            raise ValueError('Please select a valid test_split')
+
+        test_df = test_df.loc[test_df[args.to_classify].isin(label_dict)]
+
+        print(f"test df is this size: {test_df.shape} with {len(test_df['name'].unique())} labels")
+
+        test_image_dir = args.data_dir
+
+        test_dset = supervised_dataset.LabelsDataset(test_df, test_image_dir,
+                                                  label_dict, args.to_classify,
+                                                  transform=transform,
+                                                  target_transform=None)
+        test_loader = DataLoader(test_dset, args.test_batch_size,
+                                 shuffle=True, num_workers=args.processes)
+
+    # device
+    device = torch.device(f"cuda:{args.device}" if args.device >=0 else "cpu")
+    print(f"Experiment running on device: {device}")
+
+    # model
+
+    # read hyperparameters of model
+    metadata = f"{args.model_dir}/finetune_results/{args.exp_id}/{args.exp_id}_hyperparams.json"
+    modelweights = f"{args.model_dir}/finetune_results/{args.exp_id}/{args.exp_id}_best_model.pth" 
+    with open(metadata, 'r') as f:
+        hyperparams = json.load(f)
+        hyperparams = SimpleNamespace(**hyperparams)
+
+    modeldata = torch.load(modelweights, map_location=torch.device('cpu'))
+    bestepoch = modeldata['epoch'] + 1
+    if (args.model == 'ResNet50'):
+        model = models.resnet50()
+        model.fc = nn.Linear(model.fc.in_features, len(label_dict))
+        model.load_state_dict(modeldata["model_state_dict"], strict=True)
+    else:
+        model = models.resnet18()
+        model.fc = nn.Linear(model.fc.in_features, len(label_dict))
+        model.load_state_dict(modeldata["model_state_dict"], strict=True)
+
+    
+    model.to(device)
+    print(f'starting test')
+    
     model.eval()
-    test_loss = 0
-    correct = 0
-    top5correct = 0
     all_logits, all_labels = [], []
+    test_loss = 0.0
     with torch.no_grad():
         for data, target in tqdm(test_loader, total=len(test_loader), 
-                                 desc=f'testing epoch {epoch}'):
+                                 desc=f'testing model from epoch {bestepoch}'):
             
             data, target = data.to(device), target.to(device)
             output = model(data)
@@ -65,24 +131,6 @@ def test_one_epoch(model, device, test_loader, epoch, logger, count, SummaryWrit
             
             test_loss += F.cross_entropy(output, target, reduction='sum').item()
 
-            writer.add_scalar('Test/Loss', (F.cross_entropy(output, target, reduction='sum').item()), count)
-            count+=1
-            # see if the highest predicted class was the right class
-            pred = output.argmax(dim=1, keepdim=True)  # get the index of the max log-probability
-
-            top5, indices = output.topk(5, dim=1)
-            correct += pred.eq(target.view_as(pred)).sum().item()
-            for c in range(indices.size(1)):
-                c_tens = indices[:,c]
-                top5correct += c_tens.eq(target.view_as(c_tens)).sum().item()
-    # get average test loss
-    test_loss /= len(test_loader.dataset)
-    print(f'test set avg loss: {round(test_loss, 6)} Acc: {correct}/{len(test_loader.dataset)}:{100*round(correct / len(test_loader.dataset), 4)}%')
-    logger['loss'][epoch] = round(test_loss, 6)
-    logger['1accuracy'][epoch] = 100*round(correct / len(test_loader.dataset), 6)
-    print(f'test set avg loss top-5: {round(test_loss, 6)} Acc: {top5correct}/{len(test_loader.dataset)}:{100*round(top5correct / len(test_loader.dataset), 4)}%')
-    logger['5accuracy'][epoch] = 100*round(top5correct / len(test_loader.dataset), 6)
-
     all_logits = torch.cat(all_logits, dim=0)
     labels = torch.cat(all_labels, dim=0)
     labels = labels.detach().cpu()
@@ -91,156 +139,97 @@ def test_one_epoch(model, device, test_loader, epoch, logger, count, SummaryWrit
     top1, top5 = utils.obs_topK(labels, probits, K=5) 
     spectop1 = utils.species_topK(labels, probits, K=1)
     spectop5 = utils.species_topK(labels, probits, K=5)
-    logger['1spec_acc'][epoch] = spectop1
-    logger['5spec_acc'][epoch] = spectop5
-    """
-    IMPLEMENT UTILS FIRST
-    all_logits = torch.cat(all_logits, dim=0)
-    labels = torch.cat(all_labels, dim=0)
-    labels = labels.detach().cpu()
-    probits = F.softmax(all_logits, dim=1)
-    probits = probits.detach().cpu()
-    top1, top5 = utils.obs_topK(labels, probits, K=5) 
-    spectop1 = utils.species_topK(labels, probits, K=1)
-    spectop5 = utils.species_topK(labels, probits, K=5)
+    spectop30 = crisp_utils.species_topK(labels, probits, K=30)
+    weighttop1 = utils.rarity_weighted_topK(labels, probits, K=1)
+    weighttop5 = utils.rarity_weighted_topK(labels, probits, K=5)
 
-    # hacky, but filter to common, rare, etc species
-    # from auto arborist(ish)
-    fartop1 = utils.subset_topK(labels, probits, traindset.farlabs, 1)
-    fartop5 = utils.subset_topK(labels, probits, traindset.farlabs, 5)
+    fartop1 = crisp_utils.subset_topK(labels, probits, test_ds.farlabs, 1)
+    fartop5 = crisp_utils.subset_topK(labels, probits, test_ds.farlabs, 5)
+    fartop30 = crisp_utils.subset_topK(labels, probits, test_ds.farlabs, 30)
 
-    cartop1 = utils.subset_topK(labels, probits, traindset.carlabs, 1)
-    cartop5 = utils.subset_topK(labels, probits, traindset.carlabs, 5)
+    cartop1 = crisp_utils.subset_topK(labels, probits, test_ds.carlabs, 1)
+    cartop5 = crisp_utils.subset_topK(labels, probits, test_ds.carlabs, 5)
+    cartop30 = crisp_utils.subset_topK(labels, probits, test_ds.carlabs, 30)
 
-    rartop1 = utils.subset_topK(labels, probits, traindset.rarlabs, 1)
-    rartop5 = utils.subset_topK(labels, probits, traindset.rarlabs, 5)
-    print(top1, top5, spectop1, spectop5, fartop1, cartop1, rartop1)
-
-    
-    if tb_writer is not None:
-        tb_writer.add_scalar("test/obs_top_5", top5, epoch)
-        tb_writer.add_scalar("test/obs_top_1", top1, epoch)
-        tb_writer.add_scalar("test/spec_top_1", spectop1, epoch)
-        tb_writer.add_scalar("test/spec_top_5", spectop5, epoch)
-        tb_writer.add_scalar("test/far_top_1", fartop1, epoch)
-        tb_writer.add_scalar("test/far_top_5", fartop5, epoch)
-        tb_writer.add_scalar("test/car_top_1", cartop1, epoch)
-        tb_writer.add_scalar("test/car_top_5", cartop5, epoch)
-        tb_writer.add_scalar("test/rar_top_1", rartop1, epoch)
-        tb_writer.add_scalar("test/rar_top_5", rartop5, epoch)
+    rartop1 = crisp_utils.subset_topK(labels, probits, test_ds.rarlabs, 1)
+    rartop5 = crisp_utils.subset_topK(labels, probits, test_ds.rarlabs, 5)
+    rartop30 = crisp_utils.subset_topK(labels, probits, test_ds.rarlabs, 30)
 
 
-    # using species top 1 as early stopping
-    return spectop1
-    """
-    return logger
-    
+    # ecoregion
+    eco_results1 = {}
+    eco_results5 = {}
+    for ecoregion, idxs in test_ds.l2_ecoregion.items():
+        sublabels = labels[idxs]
+        subpreds = probits[idxs]
+        e1, e5 = crisp_utils.obs_topK(sublabels, subpreds, K=5)
+        eco_results1[f"{ecoregion}_top_1"] = e1
+        eco_results5[f"{ecoregion}_top_5"] = e5
+    etop1 = np.mean(eco_results1.values())
+    etop5 = np.mean(eco_results5.values())
 
-def train(args, save_dir, full_exp_id, exp_id):
 
-    # dataset
-    label_dict = {}
-    if args.dataset == "DivShift":
-        # Standard transform for ImageNet
-        transform = transforms.Compose([transforms.Resize(256), 
-                                        transforms.CenterCrop(224),
-                                        transforms.Normalize(mean=[0.485, 
-                                                                   0.456, 
-                                                                   0.406], 
-                                                             std=[0.229, 
-                                                                  0.224, 
-                                                                  0.225]),])
-        # Get training data
-        ddf = pd.read_csv(f'{args.data_dir}/splits.csv')
-        if (args.train_split in ddf.columns):
-            train_df = ddf[(ddf['supervised'] == True) & 
-               (ddf['download_success'] == 'yes') &
-               (ddf[args.train_split] == 'train')]
-        elif (args.train_split == '2019-2021'):
-            train_df = ddf[(ddf['supervised'] == True) & 
-               (ddf['download_success'] == 'yes') & 
-               ((pd.to_datetime(ddf['date']).dt.year == 2019) | (pd.to_datetime(ddf['date']).dt.year == 2020) | (pd.to_datetime(ddf['date']).dt.year == 2021))]
-        else:
-            raise ValueError('Please select a valid train_split')
-        
-        # associate class with index
-        i = 0
-        for row in range(train_df.shape[0]):
-            label = train_df.iloc[row][args.to_classify]
-            if (label not in label_dict):
-                label_dict[label] = i
-                i += 1
-        
-        # Get test data
-        if (args.test_split in ddf.columns):
-            test_df = ddf[(ddf['supervised'] == True) & 
-               (ddf['download_success'] == 'yes') &
-               (ddf[args.test_split] == 'test')]
-        elif (args.test_split == '2022'):
-            test_df = ddf[(ddf['supervised'] == True) & (ddf['download_success'] == 'yes') & (pd.to_datetime(ddf['date']).dt.year == 2022)]
-        elif (args.test_split == '2023'):
-            test_df = ddf[(ddf['supervised'] == True) & (ddf['download_success'] == 'yes') & (pd.to_datetime(ddf['date']).dt.year == 2023)]
-        else:
-            raise ValueError('Please select a valid test_split')
-        
-        test_df = test_df.loc[test_df[args.to_classify].isin(label_dict)]
-        test_image_dir = args.data_dir
-        
-        test_dset = supervised_dataset.LabelsDataset(test_df, test_image_dir, 
-                                                  label_dict, args.to_classify, 
-                                                  transform=transform, 
-                                                  target_transform=None)
-        test_loader = DataLoader(test_dset, args.test_batch_size, 
-                                 shuffle=True, num_workers=args.processes)
-    
-    # device
-    device = torch.device(f"cuda:{args.device}" if args.device >=0 else "cpu")
-    print(f"Experiment running on device: {device}")
 
-    # model
-    if (args.model == 'ResNet50'):
-        model = models.resnet50()
-        model.fc = nn.Linear(model.fc.in_features, len(label_dict))
-        model.load_state_dict(torch.load(args.train_saved_weights)["model_state_dict"], strict=False)
+    # land use category
+    luc_results1 = {}
+    luc_results5 = {}
+    for ecoregion, idxs in test_ds.land_use.items():
+        sublabels = labels[idxs]
+        subpreds = probits[idxs]
+        e1, e5 = crisp_utils.obs_topK(sublabels, subpreds, K=5)
+        luc_results1[f"luc_{ecoregion}_top_1"] = e1
+        luc_results5[f"luc_{ecoregion}_top_5"] = e5
+    luctop1 = np.mean(luc_results1.values())
+    luctop5 = np.mean(luc_results5.values())
+
+    # TODO: update extra tidbits to save
+    results = {
+            'best_epoch' : [bestepoch],
+            'model' : [hyperparams.model],
+            'exp_id' : [args.exp_id],
+            'test_split' : [args.test_split],
+            'train_split' : [hyperparams.train_split],
+            'train_type' : [hyperparams.train_type],
+            'learning_rate' : [hyperparams.learning_rate],
+            'batch_size' : [hyperparams.batch_size],
+            'optimizer' : [hyperparams.optimizer],
+            'date' : [datetime.datetime.now()],
+            'obs_top_1' : [top1],
+            'obs_top_5' : [top5],
+            'obs_top_30' : [top30],
+            'spec_top_1' : [spectop1],
+            'spec_top_5' : [spectop5],
+            'spec_top_30' : [spectop30],
+            'weighted_top_1' : [weighttop1],
+            'weighted_top_5' : [weighttop5],
+            'far_top_1' : [fartop1],
+            'far_top_5' : [fartop5],
+            'far_top_30' : [fartop30],
+            'car_top_1' : [cartop1],
+            'car_top_5' : [cartop5],
+            'car_top_30' : [cartop30],
+            'rar_top_1' : [rartop1],
+            'rar_top_5' : [rartop5],
+            'rar_top_30' : [rartop30],
+           'eco_top_1' : [etop1],
+           'eco_top_5' : [etop5],
+            'luc_top_1' : [luctop1],
+           'luc_top_5' : [luctop5],
+           'test_loss' : [test_loss],
+           }
+    res = pd.DataFrame({**results, **eco_results1, **eco_results5, **luc_results1, **luc_results5})
+    # save accs to group csv
+    total_csv = f"{args.data_dir}/inference/{args.dataset}_overall.csv"
+    print('saving overall results')
+    if not os.path.exists(total_csv):
+        res.to_csv(total_csv, index=False)
     else:
-        model = models.resnet18()
-        model.fc = nn.Linear(model.fc.in_features, len(label_dict))
-        model.load_state_dict(torch.load(args.train_saved_weights)["model_state_dict"], strict=False)
-    params = model.parameters()
-    
-    model.to(device)
+        tot_csv = pd.read_csv(total_csv)
+        res = pd.concat([tot_csv, res])
+        res.to_csv(total_csv, index=False)
 
-    if (args.optimizer == 'Adam'):
-        optimizer = optim.Adam(params, lr=args.learning_rate)
-    elif args.optimizer == 'SGD':
-        optimizer = optim.SGD(params, lr=args.learning_rate)
-    elif args.optimizer == 'AdamW':
-        optimizer = optim.AdamW(params, lr=args.learning_rate)
-    elif args.optimizer == 'RMSprop':
-        optimizer = optim.RMSprop(params, lr=args.learning_rate)
-    else:
-        raise NotImplemented
 
-    # for logging purposes
-    log_dir = f"{save_dir}logger"
-    writer = None if args.testing else SummaryWriter(log_dir=log_dir, comment=f"{full_exp_id}")
-    test_log = {}
-    test_log['loss'] = {}
-    test_log['1accuracy'] = {}
-    test_log['5accuracy'] = {}
-    test_log['1spec_acc'] = {}
-    test_log['5spec_acc'] = {}
-    countTestBatch = 0
-    best_acc = 0.0
-    epoch = 0
-    
-    print(f'starting test')
-    test_log = test_one_epoch(model, device, test_loader, epoch, test_log, countTestBatch, writer)
-    writer.add_scalar('Top-1 Accuracy', test_log['1accuracy'][epoch], epoch)
-    writer.add_scalar('Top-5 Accuracy', test_log['5accuracy'][epoch], epoch)
-    writer.add_scalar('Top-1 Species Accuracy', test_log['1spec_acc'][epoch], epoch)
-    writer.add_scalar('Top-5 Species Accuracy', test_log['5spec_acc'][epoch], epoch)
-    save_weights(save_dir, test_log)
+
 
 # ----------------- Runner ----------------- #
 
@@ -250,32 +239,16 @@ if __name__ == "__main__":
 
     parser.add_argument('--device', type=int, help='what device number to use (-1 for cpu)', default=-1)
     parser.add_argument("--data_dir", type=str, help="Location of directory where train/test/val split are saved to.", required=True) 
-    parser.add_argument("--train_saved_weights", type=str, help="Location of pretrain saved weights", default=None)
+    parser.add_argument("--model_dir", type=str, help="Location of directory where model weights are saved to.", required=True) 
     parser.add_argument('--dataset', type=str, help='DivShift', default='DivShift')
-    parser.add_argument('--optimizer', type=str, help='which optimizer (Adam, AdamW, SGD, or RMSprop)', choices=['Adam', 'AdamW', 'SGD', 'RMSprop'], default='SGD')
     parser.add_argument('--model', type=str, help='which model', choices=['ResNet18', 'ResNet50'], default='ResNet18')
-    parser.add_argument("--exp_id", type=str, help="Experiment name for logging purposes.", required=True)
+    parser.add_argument("--exp_id", type=str, help="Experiment name of trained model.", required=True)
     parser.add_argument("--test_batch_size", type=int, help="Examples per batch", default=1000)
-    parser.add_argument("--learning_rate", type=float, help="Learning rate for optimizer.", default=0.001)
     parser.add_argument('--processes', type=int, help='Number of workers for dataloader.', default=0)
     parser.add_argument('--train_split', type=str, help="which split the saved weights were trained on", required=True)
     parser.add_argument('--test_split', type=str, help="which split to test on", required=True)
     parser.add_argument('--to_classify', type=str, help="which column to classify", default='name')
     parser.add_argument('--testing', action='store_true', help='dont log the run to tensorboard')
-    parser.add_argument('--display_batch_loss', action='store_true', help='Display loss at each batch in the training bar')
     
     args = parser.parse_args()
-    # create dir for saving
-    date = datetime.now().strftime('%Y-%m-%d')
-    full_exp_id = f"{args.exp_id}_{date}"
-
-    save_dir = f'./DivShift_supervised_results/{full_exp_id}/'
-    if not os.path.exists(save_dir):
-        os.makedirs(save_dir)
-
-    # save hyperparameters
-    json_fname = f'{save_dir}{full_exp_id}_hyperparams.json'
-    with open(json_fname, 'w') as f:
-        json.dump(vars(args), f, indent=4)
-
-    train(args, save_dir, full_exp_id, args.exp_id)
+    inference(args)
