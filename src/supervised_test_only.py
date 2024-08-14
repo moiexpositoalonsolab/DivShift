@@ -68,7 +68,7 @@ def inference(args):
         print('setting up test dataset')
         # Get test data
         if (args.test_split in ddf.columns):
-            if args.use_entire_test:
+            if args.use_entire_split:
                 test_df = ddf[(ddf['supervised'] == True) & ((ddf[args.test_split] == 'test') | (ddf[args.test_split] == 'train'))]
             else:
                 test_df = ddf[(ddf['supervised'] == True) & (ddf[args.test_split] == 'test')]
@@ -104,7 +104,9 @@ def inference(args):
     with open(metadata, 'r') as f:
         hyperparams = json.load(f)
         hyperparams = SimpleNamespace(**hyperparams)
-
+    
+    
+    
     modeldata = torch.load(modelweights, map_location=torch.device('cpu'))
     bestepoch = modeldata['epoch'] + 1
     if (args.model == 'ResNet50'):
@@ -115,7 +117,9 @@ def inference(args):
         model = models.resnet18()
         model.fc = nn.Linear(model.fc.in_features, len(label_dict))
         model.load_state_dict(modeldata["model_state_dict"], strict=True)
-
+    lastmodel = f"{args.model_dir}/finetune_results/{args.exp_id}/{args.exp_id}_epoch{hyperparams.num_epochs - 1}.pth"
+    if not os.path.exists(lastmodel):
+        raise ValueError(f"WARNING: {args.exp_id} has not finished training! Best epoch is {bestepoch} and total number of expeced epochs is {hyperparams.num_epochs }")
     
     model.to(device)
     print(f'starting test')
@@ -192,7 +196,7 @@ def inference(args):
             'model' : [hyperparams.model],
             'exp_id' : [args.exp_id],
             'test_split' : [args.test_split],
-            'use_all_test' : [args.use_entire_test],
+            'use_all_test' : [args.use_entire_split],
             'train_split' : [hyperparams.train_split],
             'train_type' : [hyperparams.train_type],
             'learning_rate' : [hyperparams.learning_rate],
@@ -253,7 +257,7 @@ if __name__ == "__main__":
     parser.add_argument('--processes', type=int, help='Number of workers for dataloader.', default=0)
     parser.add_argument('--train_split', type=str, help="which split the saved weights were trained on", required=True)
     parser.add_argument('--test_split', type=str, help="which split to test on", required=True)
-    parser.add_argument('--use_entire_test', action='store_true', help='for splits with few observations, opt to use the entire split')
+    parser.add_argument('--use_entire_split', action='store_true', help='for splits with few observations, opt to use the entire split')
     parser.add_argument('--to_classify', type=str, help="which column to classify", default='name')
     parser.add_argument('--testing', action='store_true', help='dont log the run to tensorboard')
     
