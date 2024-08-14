@@ -225,7 +225,6 @@ def rarity_weighted_topK(ytrue, yobs, K):
     
     sas = np.array(sas)
     denom = np.array(denom)
-    print(sas.shape, denom.shape)
     num = sas[~np.isnan(sas)]
     denom = denom[~np.isnan(denom)]
     return (num.sum() / denom.sum())
