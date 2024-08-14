@@ -68,7 +68,10 @@ def inference(args):
         print('setting up test dataset')
         # Get test data
         if (args.test_split in ddf.columns):
-            test_df = ddf[(ddf['supervised'] == True) & (ddf[args.test_split] == 'test')]
+            if use_entire_test:
+                test_df = ddf[(ddf['supervised'] == True) & ((ddf[args.test_split] == 'test') | (ddf[args.test_split] == 'train'))]
+            else:
+                test_df = ddf[(ddf['supervised'] == True) & (ddf[args.test_split] == 'test')]
         elif (args.test_split == '2022'):
             test_df = ddf[(ddf['supervised'] == True) & (ddf['download_success'] == 'yes') & (pd.to_datetime(ddf['date']).dt.year == 2022)]
         elif (args.test_split == '2023'):
@@ -139,21 +142,21 @@ def inference(args):
     top1, top5 = utils.obs_topK(labels, probits, K=5) 
     spectop1 = utils.species_topK(labels, probits, K=1)
     spectop5 = utils.species_topK(labels, probits, K=5)
-    spectop30 = crisp_utils.species_topK(labels, probits, K=30)
+    spectop30 = utils.species_topK(labels, probits, K=30)
     weighttop1 = utils.rarity_weighted_topK(labels, probits, K=1)
     weighttop5 = utils.rarity_weighted_topK(labels, probits, K=5)
 
-    fartop1 = crisp_utils.subset_topK(labels, probits, test_ds.farlabs, 1)
-    fartop5 = crisp_utils.subset_topK(labels, probits, test_ds.farlabs, 5)
-    fartop30 = crisp_utils.subset_topK(labels, probits, test_ds.farlabs, 30)
+    fartop1 = utils.subset_topK(labels, probits, test_ds.farlabs, 1)
+    fartop5 = utils.subset_topK(labels, probits, test_ds.farlabs, 5)
+    fartop30 = utils.subset_topK(labels, probits, test_ds.farlabs, 30)
 
-    cartop1 = crisp_utils.subset_topK(labels, probits, test_ds.carlabs, 1)
-    cartop5 = crisp_utils.subset_topK(labels, probits, test_ds.carlabs, 5)
-    cartop30 = crisp_utils.subset_topK(labels, probits, test_ds.carlabs, 30)
+    cartop1 = utils.subset_topK(labels, probits, test_ds.carlabs, 1)
+    cartop5 = utils.subset_topK(labels, probits, test_ds.carlabs, 5)
+    cartop30 = utils.subset_topK(labels, probits, test_ds.carlabs, 30)
 
-    rartop1 = crisp_utils.subset_topK(labels, probits, test_ds.rarlabs, 1)
-    rartop5 = crisp_utils.subset_topK(labels, probits, test_ds.rarlabs, 5)
-    rartop30 = crisp_utils.subset_topK(labels, probits, test_ds.rarlabs, 30)
+    rartop1 = utils.subset_topK(labels, probits, test_ds.rarlabs, 1)
+    rartop5 = utils.subset_topK(labels, probits, test_ds.rarlabs, 5)
+    rartop30 = utils.subset_topK(labels, probits, test_ds.rarlabs, 30)
 
 
     # ecoregion
@@ -162,7 +165,7 @@ def inference(args):
     for ecoregion, idxs in test_ds.l2_ecoregion.items():
         sublabels = labels[idxs]
         subpreds = probits[idxs]
-        e1, e5 = crisp_utils.obs_topK(sublabels, subpreds, K=5)
+        e1, e5 = utils.obs_topK(sublabels, subpreds, K=5)
         eco_results1[f"{ecoregion}_top_1"] = e1
         eco_results5[f"{ecoregion}_top_5"] = e5
     etop1 = np.mean(eco_results1.values())
@@ -176,7 +179,7 @@ def inference(args):
     for ecoregion, idxs in test_ds.land_use.items():
         sublabels = labels[idxs]
         subpreds = probits[idxs]
-        e1, e5 = crisp_utils.obs_topK(sublabels, subpreds, K=5)
+        e1, e5 = utils.obs_topK(sublabels, subpreds, K=5)
         luc_results1[f"luc_{ecoregion}_top_1"] = e1
         luc_results5[f"luc_{ecoregion}_top_5"] = e5
     luctop1 = np.mean(luc_results1.values())
@@ -188,6 +191,7 @@ def inference(args):
             'model' : [hyperparams.model],
             'exp_id' : [args.exp_id],
             'test_split' : [args.test_split],
+            'use_all_test' : [args.use_entire_test],
             'train_split' : [hyperparams.train_split],
             'train_type' : [hyperparams.train_type],
             'learning_rate' : [hyperparams.learning_rate],
@@ -247,6 +251,7 @@ if __name__ == "__main__":
     parser.add_argument('--processes', type=int, help='Number of workers for dataloader.', default=0)
     parser.add_argument('--train_split', type=str, help="which split the saved weights were trained on", required=True)
     parser.add_argument('--test_split', type=str, help="which split to test on", required=True)
+    parser.add_argument('--use_entire_test', action='store_true', help='for splits with few observations, opt to use the entire split')
     parser.add_argument('--to_classify', type=str, help="which column to classify", default='name')
     parser.add_argument('--testing', action='store_true', help='dont log the run to tensorboard')
     
