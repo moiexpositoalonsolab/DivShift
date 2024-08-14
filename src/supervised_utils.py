@@ -191,3 +191,40 @@ def subset_topK(labels, probits, rows_to_keep, K):
     assert len(fyo.shape) > 1, f"predictions are the wrong shape! {fyo.shape}"
     fyo = fyo[rows_to_keep, :]
     return species_topK(fyt, fyo, K=1), species_topK(fyt, fyo, K=K), obs_topK(fyt.clone(), fyo.clone)
+
+
+def rarity_weighted_topK(ytrue, yobs, K):
+    nspecs = yobs.shape[1]
+    yobs = torch.as_tensor(yobs)
+    ytrue = torch.as_tensor(ytrue)
+
+    _, tk = torch.topk(yobs, K)
+    # get all unique species label and their indices
+    unq = torch.unique(ytrue, sorted=False, return_inverse=True)
+    # make a dict to store the results for each species
+    specs = {v.item():[] for v in unq[0]}
+    # go through each row and assign it to the corresponding
+    # species using the reverse_index item from torch.unique
+    for val, row in zip(unq[1], tk):
+        specs[unq[0][val.item()].item()].append(row)
+    sas = []
+    denom = []
+    for i in range(nspecs):
+        # ignore not present species
+        spec = specs.get(i)
+        if spec is None:
+            sas.append(np.nan)
+            continue
+        nspecs += 1
+        # spoof ytrue for this species
+        yt = torch.full((len(spec),K), i)
+        # and calculate 'per-obs' accuracy
+        sas.append((torch.stack(spec)== yt).sum().item()/len(spec)**2)
+        denom.append(1/len(spec))
+
+    
+    sas = np.array(sas)
+    denom = np.array(denom)
+    num = sas[~np.isnan(sas)]
+    denom = denom[~np.isnan(sas)]
+    return (num.sum() / denom.sum())
