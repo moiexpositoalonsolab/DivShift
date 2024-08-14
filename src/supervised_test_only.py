@@ -229,7 +229,7 @@ def inference(args):
            }
     res = pd.DataFrame({**results, **eco_results1, **eco_results5, **luc_results1, **luc_results5})
     # save accs to group csv
-    total_csv = f"{args.data_dir}/inference/{args.dataset}_overall.csv"
+    total_csv = f"{args.data_dir}/inference/{args.dataset}_{args.train_split}_overall.csv"
     print('saving overall results')
     if not os.path.exists(total_csv):
         res.to_csv(total_csv, index=False)
