@@ -145,24 +145,25 @@ def inference(args):
     spectop30 = utils.species_topK(labels, probits, K=30)
     weighttop1 = utils.rarity_weighted_topK(labels, probits, K=1)
     weighttop5 = utils.rarity_weighted_topK(labels, probits, K=5)
+    weighttop30 = utils.rarity_weighted_topK(labels, probits, K=30)
 
-    fartop1 = utils.subset_topK(labels, probits, test_ds.farlabs, 1)
-    fartop5 = utils.subset_topK(labels, probits, test_ds.farlabs, 5)
-    fartop30 = utils.subset_topK(labels, probits, test_ds.farlabs, 30)
+    fartop1 = utils.subset_topK(labels, probits, test_dset.farlabs, 1)
+    fartop5 = utils.subset_topK(labels, probits, test_dset.farlabs, 5)
+    fartop30 = utils.subset_topK(labels, probits, test_dset.farlabs, 30)
 
-    cartop1 = utils.subset_topK(labels, probits, test_ds.carlabs, 1)
-    cartop5 = utils.subset_topK(labels, probits, test_ds.carlabs, 5)
-    cartop30 = utils.subset_topK(labels, probits, test_ds.carlabs, 30)
+    cartop1 = utils.subset_topK(labels, probits, test_dset.carlabs, 1)
+    cartop5 = utils.subset_topK(labels, probits, test_dset.carlabs, 5)
+    cartop30 = utils.subset_topK(labels, probits, test_dset.carlabs, 30)
 
-    rartop1 = utils.subset_topK(labels, probits, test_ds.rarlabs, 1)
-    rartop5 = utils.subset_topK(labels, probits, test_ds.rarlabs, 5)
-    rartop30 = utils.subset_topK(labels, probits, test_ds.rarlabs, 30)
+    rartop1 = utils.subset_topK(labels, probits, test_dset.rarlabs, 1)
+    rartop5 = utils.subset_topK(labels, probits, test_dset.rarlabs, 5)
+    rartop30 = utils.subset_topK(labels, probits, test_dset.rarlabs, 30)
 
 
     # ecoregion
     eco_results1 = {}
     eco_results5 = {}
-    for ecoregion, idxs in test_ds.l2_ecoregion.items():
+    for ecoregion, idxs in test_dset.l2_ecoregion.items():
         sublabels = labels[idxs]
         subpreds = probits[idxs]
         e1, e5 = utils.obs_topK(sublabels, subpreds, K=5)
@@ -176,7 +177,7 @@ def inference(args):
     # land use category
     luc_results1 = {}
     luc_results5 = {}
-    for ecoregion, idxs in test_ds.land_use.items():
+    for ecoregion, idxs in test_dset.land_use.items():
         sublabels = labels[idxs]
         subpreds = probits[idxs]
         e1, e5 = utils.obs_topK(sublabels, subpreds, K=5)
@@ -206,6 +207,7 @@ def inference(args):
             'spec_top_30' : [spectop30],
             'weighted_top_1' : [weighttop1],
             'weighted_top_5' : [weighttop5],
+            'weighted_top_30' : [weighttop30],
             'far_top_1' : [fartop1],
             'far_top_5' : [fartop5],
             'far_top_30' : [fartop30],
@@ -215,11 +217,11 @@ def inference(args):
             'rar_top_1' : [rartop1],
             'rar_top_5' : [rartop5],
             'rar_top_30' : [rartop30],
-           'eco_top_1' : [etop1],
-           'eco_top_5' : [etop5],
+            'eco_top_1' : [etop1],
+            'eco_top_5' : [etop5],
             'luc_top_1' : [luctop1],
-           'luc_top_5' : [luctop5],
-           'test_loss' : [test_loss],
+            'luc_top_5' : [luctop5],
+            'test_loss' : [test_loss],
            }
     res = pd.DataFrame({**results, **eco_results1, **eco_results5, **luc_results1, **luc_results5})
     # save accs to group csv
