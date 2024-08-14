@@ -127,14 +127,14 @@ def test_one_epoch(model, device, test_loader, epoch, logger, count, SummaryWrit
     top5correct = 0
     all_logits, all_labels = [], []
     with torch.no_grad():
-        for data, target in tqdm(test_loader, total=len(test_loader), 
+        for data, target in tqdm(test_loader, total=len(test_loader),
                                  desc=f'testing epoch {epoch}'):
-            
+
             data, target = data.to(device), target.to(device)
             output = model(data)
             all_logits.append(output.detach().cpu())
             all_labels.append(target.detach().cpu())
-            
+
             test_loss += F.cross_entropy(output, target, reduction='sum').item()
 
             writer.add_scalar('Test/Loss', (F.cross_entropy(output, target, reduction='sum').item()), count)
@@ -160,7 +160,7 @@ def test_one_epoch(model, device, test_loader, epoch, logger, count, SummaryWrit
     labels = labels.detach().cpu()
     probits = F.softmax(all_logits, dim=1)
     probits = probits.detach().cpu()
-    top1, top5 = utils.obs_topK(labels, probits, K=5) 
+    top1, top5 = utils.obs_topK(labels, probits, K=5)
     spectop1 = utils.species_topK(labels, probits, K=1)
     spectop5 = utils.species_topK(labels, probits, K=5)
     logger['1spec_acc'][epoch] = spectop1
@@ -172,7 +172,7 @@ def test_one_epoch(model, device, test_loader, epoch, logger, count, SummaryWrit
     labels = labels.detach().cpu()
     probits = F.softmax(all_logits, dim=1)
     probits = probits.detach().cpu()
-    top1, top5 = utils.obs_topK(labels, probits, K=5) 
+    top1, top5 = utils.obs_topK(labels, probits, K=5)
     spectop1 = utils.species_topK(labels, probits, K=1)
     spectop5 = utils.species_topK(labels, probits, K=5)
 
@@ -188,7 +188,7 @@ def test_one_epoch(model, device, test_loader, epoch, logger, count, SummaryWrit
     rartop5 = utils.subset_topK(labels, probits, traindset.rarlabs, 5)
     print(top1, top5, spectop1, spectop5, fartop1, cartop1, rartop1)
 
-    
+
     if tb_writer is not None:
         tb_writer.add_scalar("test/obs_top_5", top5, epoch)
         tb_writer.add_scalar("test/obs_top_1", top1, epoch)
@@ -206,7 +206,7 @@ def test_one_epoch(model, device, test_loader, epoch, logger, count, SummaryWrit
     return spectop1
     """
     return logger
-    
+
 
 def train(args, save_dir, full_exp_id, exp_id):
 
@@ -215,13 +215,13 @@ def train(args, save_dir, full_exp_id, exp_id):
     label_dict = {}
     if args.dataset == "DivShift":
         # Standard transform for ImageNet
-        transform = transforms.Compose([transforms.Resize(256), 
+        transform = transforms.Compose([transforms.Resize(256),
                                         transforms.CenterCrop(224),
-                                        transforms.Normalize(mean=[0.485, 
-                                                                   0.456, 
-                                                                   0.406], 
-                                                             std=[0.229, 
-                                                                  0.224, 
+                                        transforms.Normalize(mean=[0.485,
+                                                                   0.456,
+                                                                   0.406],
+                                                             std=[0.229,
+                                                                  0.224,
                                                                   0.225]),])
         # Get training data
         ddf = pd.read_csv(f'{args.data_dir}/splits_lauren.csv')
@@ -229,28 +229,29 @@ def train(args, save_dir, full_exp_id, exp_id):
         if (args.train_split in ddf.columns):
             train_df = ddf[(ddf['supervised'] == True) & (ddf[args.train_split] == 'train')]
         elif (args.train_split == '2019-2021'):
-            train_df = ddf[(ddf['supervised'] == True) & 
+            train_df = ddf[(ddf['supervised'] == True) &
                ((pd.to_datetime(ddf['date']).dt.year == 2019) | (pd.to_datetime(ddf['date']).dt.year == 2020) | (pd.to_datetime(ddf['date']).dt.year == 2021))]
         else:
             raise ValueError('Please select a valid train_split')
-        
+
         # associate class with index
-        print(f"train df is split {args.train_split} with this size: {train_df.shape} with {len(train_df['name'].unique())} labels")
+        print(f"train df is this size: {train_df.shape} with {len(train_df['name'].unique())} labels")
         label_dict = {spec: i for i, spec in enumerate(sorted(train_df[args.to_classify].unique().tolist()))}
-        #i = 0
-        #for row in range(train_df.shape[0]):
-        #    label = train_df.iloc[row][args.to_classify]
-        #    if (label not in label_dict):
-        #        label_dict[label] = i
-        #        i += 1
-        
+        print(f"label dict is {len(label_dict)} with {min(list(label_dict.values()))} min label name and {max(list(label_dict.values()))} max label name")
+        # i = 0
+        # for row in range(train_df.shape[0]):
+        #     label = train_df.iloc[row][args.to_classify]
+        #     if (label not in label_dict):
+        #         label_dict[label] = i
+        #         i += 1
+
         train_image_dir = args.data_dir
-        
+
         train_dset = supervised_dataset.LabelsDataset(train_df, train_image_dir,
-                                                   label_dict, args.to_classify, 
-                                                   transform=transform, 
+                                                   label_dict, args.to_classify,
+                                                   transform=transform,
                                                    target_transform=None)
-        train_loader = DataLoader(train_dset, args.batch_size, 
+        train_loader = DataLoader(train_dset, args.batch_size,
                                   shuffle=True, num_workers=args.processes)
         print('setting up test dataset')
         # Get test data
@@ -262,20 +263,20 @@ def train(args, save_dir, full_exp_id, exp_id):
             test_df = ddf[(ddf['supervised'] == True) & (ddf['download_success'] == 'yes') & (pd.to_datetime(ddf['date']).dt.year == 2023)]
         else:
             raise ValueError('Please select a valid test_split')
-        
+
         test_df = test_df.loc[test_df[args.to_classify].isin(label_dict)]
 
-        print(f"test df is spilt {args.test_split} of this size: {test_df.shape} with {len(test_df['name'].unique())} labels")
-        
+        print(f"test df is this size: {test_df.shape} with {len(test_df['name'].unique())} labels")
+
         test_image_dir = args.data_dir
-        
-        test_dset = supervised_dataset.LabelsDataset(test_df, test_image_dir, 
-                                                  label_dict, args.to_classify, 
-                                                  transform=transform, 
+
+        test_dset = supervised_dataset.LabelsDataset(test_df, test_image_dir,
+                                                  label_dict, args.to_classify,
+                                                  transform=transform,
                                                   target_transform=None)
-        test_loader = DataLoader(test_dset, args.test_batch_size, 
+        test_loader = DataLoader(test_dset, args.test_batch_size,
                                  shuffle=True, num_workers=args.processes)
-    
+
     # device
     device = torch.device(f"cuda:{args.device}" if args.device >=0 else "cpu")
     print(f"Experiment running on device: {device}")
@@ -293,9 +294,9 @@ def train(args, save_dir, full_exp_id, exp_id):
         model.fc = nn.Linear(model.fc.in_features, len(label_dict))
         for param in model.fc.parameters():
             param.requires_grad = True
-        
+
     params = model.parameters()
-    
+
     model.to(device)
 
     if (args.optimizer == 'Adam'):
@@ -329,7 +330,7 @@ def train(args, save_dir, full_exp_id, exp_id):
         writer.add_scalar('Top-5 Test/Accuracy', test_log['5accuracy'][epoch], epoch)
         countTrainBatch += len(train_loader)
         countTestBatch += len(test_loader)
-        
+
         save_weights(model, optimizer, epoch, args.checkpoint_freq, test_log['1spec_acc'][epoch], best_acc, save_dir, countTrainBatch, train_log, test_log)
         if test_log['1spec_acc'][epoch] > best_acc:
             best_acc = test_log['1spec_acc'][epoch]
@@ -339,7 +340,7 @@ def train(args, save_dir, full_exp_id, exp_id):
 
 
 if __name__ == "__main__":
-    split_choices = ['2019-2021', 
+    split_choices = ['2019-2021',
                      '2022',
                      '2023',
                     'not_city_nature',
@@ -370,8 +371,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Specify cli arguments.", allow_abbrev=True)
 
     parser.add_argument('--device', type=int, help='what device number to use (-1 for cpu)', default=-1)
-    parser.add_argument("--data_dir", type=str, help="Location of directory where train/test/val split are saved to.", required=True) 
-    parser.add_argument("--save_dir", type=str, help="Location of directory where models saved to.", default='./') 
+    parser.add_argument("--data_dir", type=str, help="Location of directory where train/test/val split are saved to.", required=True)
+    parser.add_argument("--save_dir", type=str, help="Location of directory where models saved to.", default='./')
     parser.add_argument('--dataset', type=str, help='DivShift', default='DivShift')
     parser.add_argument('--checkpoint_freq', type=int, help='how often to checkpoint model weights (best model is saved)', default=5)
     parser.add_argument('--optimizer', type=str, help='which optimizer (Adam, AdamW, SGD, or RMSprop)', choices=['Adam', 'AdamW', 'SGD', 'RMSprop'], default='SGD')
@@ -388,13 +389,13 @@ if __name__ == "__main__":
     parser.add_argument('--to_classify', type=str, help="which column to classify", default='name')
     parser.add_argument('--testing', action='store_true', help='dont log the run to tensorboard')
     parser.add_argument('--display_batch_loss', action='store_true', help='Display loss at each batch in the training bar')
-    
+
     args = parser.parse_args()
     # create dir for saving
     date = datetime.now().strftime('%Y-%m-%d')
     full_exp_id = f"{args.exp_id}_{date}"
 
-    save_dir = f'{args.save_dir}DivShift_supervised_results/{full_exp_id}/'
+    save_dir = f'{args.save_dir}finetune_results/{full_exp_id}/'
     if not os.path.exists(save_dir):
         print(f"making dir {save_dir}")
         os.makedirs(save_dir)
@@ -404,5 +405,4 @@ if __name__ == "__main__":
     with open(json_fname, 'w') as f:
         json.dump(vars(args), f, indent=4)
 
-    print('starting training')
     train(args, save_dir, full_exp_id, args.exp_id)

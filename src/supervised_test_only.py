@@ -2,7 +2,7 @@
 File: supervised_train.py
 Authors: Elena Sierra & Lauren Gillespie
 ------------------
-Benchmark DivShift using supervised ResNets
+Benchmark different domain shifts using supervised ResNets
 """
 
 import supervised_dataset
@@ -37,86 +37,14 @@ import pdb
 # ----------------- Utilities ----------------- #
 
 
-def save_weights(model, optimizer, epoch, freq, top1, bestacc, save_dir, steps, train_log, test_log, lr_scheduler=None):
+def save_weights(save_dir, test_log):
     exp_id = save_dir.split('/')[-2]
-    model_path= f"{save_dir}{exp_id}_epoch{epoch}.pth"
-    if (epoch+1) % freq == 0:
-        if lr_scheduler is None:
-            torch.save({
-                        'epoch': epoch,
-                        'model_state_dict': model.state_dict(),
-                        'optimizer_state_dict': optimizer.state_dict(),
-                        'step' : steps,
-                        'train_log': train_log,
-                        'test_log': test_log
-                        }, model_path)
-        else:
-            torch.save({
-                        'epoch': epoch,
-                        'model_state_dict': model.state_dict(),
-                        'optimizer_state_dict': optimizer.state_dict(),
-                        'step' : steps,
-                        "lr_scheduler": lr_scheduler.state_dict(),
-                        'learning_rate' : lr_scheduler.get_last_lr(),
-                        'train_log': train_log,
-                        'test_log': test_log
-                        }, model_path)
-
-    if top1 > bestacc:
-        if lr_scheduler is None:
-            torch.save({
-                        'epoch': epoch,
-                        'model_state_dict': model.state_dict(),
-                        'optimizer_state_dict': optimizer.state_dict(),
-                        'step' : steps,
-                        'train_log': train_log,
-                        'test_log': test_log
-                        }, f"{save_dir}{exp_id}_best_model.pth")
-        else:
-            torch.save({
-                        'epoch': epoch,
-                        'model_state_dict': model.state_dict(),
-                        'optimizer_state_dict': optimizer.state_dict(),
-                        'step' : steps,
-                        "lr_scheduler": lr_scheduler.state_dict(),
-                        'learning_rate' : lr_scheduler.get_last_lr(),
-                        'train_log': train_log,
-                        'test_log': test_log
-                        }, f"{save_dir}{exp_id}_best_model.pth")
-
-
-
+    model_path= f"{save_dir}{exp_id}.pth"
+    torch.save({
+                'test_log': test_log
+                }, model_path)
 
 # ----------------- Training ----------------- #
-
-def train_one_epoch(args, model, device, train_loader, optimizer, epoch, logger, count, SummaryWriter):
-
-    writer = SummaryWriter
-
-    model.train()
-    # logs loss per-batch to the console
-    # stats is a range object from zero to len(train_loader)
-    stats = trange(len(train_loader))
-    indexer = epoch * len(train_loader)
-    for batch_idx, (data, target)  in zip(stats, train_loader):
-        data, target = data.to(device), target.to(device)
-        optimizer.zero_grad()
-        output = model(data)
-        # standard softmax cross-entropy loss
-        loss = F.cross_entropy(output, target)
-        loss.backward()
-        optimizer.step()
-        # save train loss to tqdm bar
-        stats.set_description(f'epoch {epoch}')
-        stats.set_postfix(loss=loss.item())
-        logger[batch_idx+indexer] = loss.item()
-        writer.add_scalar('Finetune/Loss', loss.item(), count)
-        count += 1
-    stats.close()
-    return logger
-
-
-
 def test_one_epoch(model, device, test_loader, epoch, logger, count, SummaryWriter):
     #logging
     writer = SummaryWriter
@@ -211,7 +139,6 @@ def test_one_epoch(model, device, test_loader, epoch, logger, count, SummaryWrit
 def train(args, save_dir, full_exp_id, exp_id):
 
     # dataset
-    print('setting up dataset')
     label_dict = {}
     if args.dataset == "DivShift":
         # Standard transform for ImageNet
@@ -224,38 +151,31 @@ def train(args, save_dir, full_exp_id, exp_id):
                                                                   0.224, 
                                                                   0.225]),])
         # Get training data
-        ddf = pd.read_csv(f'{args.data_dir}/splits_lauren.csv')
-        #TODO add logic for different train/test splits
+        ddf = pd.read_csv(f'{args.data_dir}/splits.csv')
         if (args.train_split in ddf.columns):
-            train_df = ddf[(ddf['supervised'] == True) & (ddf[args.train_split] == 'train')]
+            train_df = ddf[(ddf['supervised'] == True) & 
+               (ddf['download_success'] == 'yes') &
+               (ddf[args.train_split] == 'train')]
         elif (args.train_split == '2019-2021'):
             train_df = ddf[(ddf['supervised'] == True) & 
+               (ddf['download_success'] == 'yes') & 
                ((pd.to_datetime(ddf['date']).dt.year == 2019) | (pd.to_datetime(ddf['date']).dt.year == 2020) | (pd.to_datetime(ddf['date']).dt.year == 2021))]
         else:
             raise ValueError('Please select a valid train_split')
         
         # associate class with index
-        print(f"train df is split {args.train_split} with this size: {train_df.shape} with {len(train_df['name'].unique())} labels")
-        label_dict = {spec: i for i, spec in enumerate(sorted(train_df[args.to_classify].unique().tolist()))}
-        #i = 0
-        #for row in range(train_df.shape[0]):
-        #    label = train_df.iloc[row][args.to_classify]
-        #    if (label not in label_dict):
-        #        label_dict[label] = i
-        #        i += 1
+        i = 0
+        for row in range(train_df.shape[0]):
+            label = train_df.iloc[row][args.to_classify]
+            if (label not in label_dict):
+                label_dict[label] = i
+                i += 1
         
-        train_image_dir = args.data_dir
-        
-        train_dset = supervised_dataset.LabelsDataset(train_df, train_image_dir,
-                                                   label_dict, args.to_classify, 
-                                                   transform=transform, 
-                                                   target_transform=None)
-        train_loader = DataLoader(train_dset, args.batch_size, 
-                                  shuffle=True, num_workers=args.processes)
-        print('setting up test dataset')
         # Get test data
         if (args.test_split in ddf.columns):
-            test_df = ddf[(ddf['supervised'] == True) & (ddf[args.test_split] == 'test')]
+            test_df = ddf[(ddf['supervised'] == True) & 
+               (ddf['download_success'] == 'yes') &
+               (ddf[args.test_split] == 'test')]
         elif (args.test_split == '2022'):
             test_df = ddf[(ddf['supervised'] == True) & (ddf['download_success'] == 'yes') & (pd.to_datetime(ddf['date']).dt.year == 2022)]
         elif (args.test_split == '2023'):
@@ -264,9 +184,6 @@ def train(args, save_dir, full_exp_id, exp_id):
             raise ValueError('Please select a valid test_split')
         
         test_df = test_df.loc[test_df[args.to_classify].isin(label_dict)]
-
-        print(f"test df is spilt {args.test_split} of this size: {test_df.shape} with {len(test_df['name'].unique())} labels")
-        
         test_image_dir = args.data_dir
         
         test_dset = supervised_dataset.LabelsDataset(test_df, test_image_dir, 
@@ -281,19 +198,14 @@ def train(args, save_dir, full_exp_id, exp_id):
     print(f"Experiment running on device: {device}")
 
     # model
-    print('setting up model')
     if (args.model == 'ResNet50'):
-        model = models.resnet50(pretrained=True)
-    else:
-        model = models.resnet18(pretrained=True)
-    model.fc = nn.Linear(model.fc.in_features, len(label_dict))
-    if args.train_type == 'feature_extraction':
-        for param in model.parameters():
-            param.requires_grad = False
+        model = models.resnet50()
         model.fc = nn.Linear(model.fc.in_features, len(label_dict))
-        for param in model.fc.parameters():
-            param.requires_grad = True
-        
+        model.load_state_dict(torch.load(args.train_saved_weights)["model_state_dict"], strict=False)
+    else:
+        model = models.resnet18()
+        model.fc = nn.Linear(model.fc.in_features, len(label_dict))
+        model.load_state_dict(torch.load(args.train_saved_weights)["model_state_dict"], strict=False)
     params = model.parameters()
     
     model.to(device)
@@ -308,83 +220,46 @@ def train(args, save_dir, full_exp_id, exp_id):
         optimizer = optim.RMSprop(params, lr=args.learning_rate)
     else:
         raise NotImplemented
-    print('starting training')
+
     # for logging purposes
     log_dir = f"{save_dir}logger"
     writer = None if args.testing else SummaryWriter(log_dir=log_dir, comment=f"{full_exp_id}")
-    train_log, test_log = {}, {}
+    test_log = {}
     test_log['loss'] = {}
     test_log['1accuracy'] = {}
     test_log['5accuracy'] = {}
     test_log['1spec_acc'] = {}
     test_log['5spec_acc'] = {}
-    countTrainBatch = 0
     countTestBatch = 0
     best_acc = 0.0
-    for epoch in range(args.num_epochs):
-        print(f'starting epoch {epoch}')
-        train_log = train_one_epoch(args, model, device, train_loader, optimizer, epoch, train_log, countTrainBatch, writer)
-        test_log = test_one_epoch(model, device, test_loader, epoch, test_log, countTestBatch, writer)
-        writer.add_scalar('Top-1 Test/Accuracy', test_log['1accuracy'][epoch], epoch)
-        writer.add_scalar('Top-5 Test/Accuracy', test_log['5accuracy'][epoch], epoch)
-        countTrainBatch += len(train_loader)
-        countTestBatch += len(test_loader)
-        
-        save_weights(model, optimizer, epoch, args.checkpoint_freq, test_log['1spec_acc'][epoch], best_acc, save_dir, countTrainBatch, train_log, test_log)
-        if test_log['1spec_acc'][epoch] > best_acc:
-            best_acc = test_log['1spec_acc'][epoch]
-
+    epoch = 0
+    
+    print(f'starting test')
+    test_log = test_one_epoch(model, device, test_loader, epoch, test_log, countTestBatch, writer)
+    writer.add_scalar('Top-1 Accuracy', test_log['1accuracy'][epoch], epoch)
+    writer.add_scalar('Top-5 Accuracy', test_log['5accuracy'][epoch], epoch)
+    writer.add_scalar('Top-1 Species Accuracy', test_log['1spec_acc'][epoch], epoch)
+    writer.add_scalar('Top-5 Species Accuracy', test_log['5spec_acc'][epoch], epoch)
+    save_weights(save_dir, test_log)
 
 # ----------------- Runner ----------------- #
 
 
 if __name__ == "__main__":
-    split_choices = ['2019-2021', 
-                     '2022',
-                     '2023',
-                    'not_city_nature',
-                    'city_nature',
-                    'alaska_socioeco',
-                    'arizona_socioeco',
-                    'baja_california_socioeco',
-                    'baja_california_sur_socioeco',
-                    'british_columbia_socioeco',
-                    'california_socioeco',
-                    'nevada_socioeco',
-                    'oregon_socioeco',
-                    'sonora_socioeco',
-                    'washington_socioeco',
-                    'yukon_socioeco',
-                    'quality_obs',
-                    'casual_obs',
-                    'footprint_wilderness',
-                    'footprint_modified',
-                    'inat2021',
-                    'inat2021mini',
-                    'imagenet',
-                    'spatial_split',
-                    'taxonomic_balanced',
-                    'taxonomic_unbalanced',
-                    'random_split']
-
     parser = argparse.ArgumentParser(description="Specify cli arguments.", allow_abbrev=True)
 
     parser.add_argument('--device', type=int, help='what device number to use (-1 for cpu)', default=-1)
     parser.add_argument("--data_dir", type=str, help="Location of directory where train/test/val split are saved to.", required=True) 
-    parser.add_argument("--save_dir", type=str, help="Location of directory where models saved to.", default='./') 
+    parser.add_argument("--train_saved_weights", type=str, help="Location of pretrain saved weights", default=None)
     parser.add_argument('--dataset', type=str, help='DivShift', default='DivShift')
-    parser.add_argument('--checkpoint_freq', type=int, help='how often to checkpoint model weights (best model is saved)', default=5)
     parser.add_argument('--optimizer', type=str, help='which optimizer (Adam, AdamW, SGD, or RMSprop)', choices=['Adam', 'AdamW', 'SGD', 'RMSprop'], default='SGD')
     parser.add_argument('--model', type=str, help='which model', choices=['ResNet18', 'ResNet50'], default='ResNet18')
     parser.add_argument("--exp_id", type=str, help="Experiment name for logging purposes.", required=True)
-    parser.add_argument("--num_epochs", type=int, help='Number of epochs to train for.', default=10)
-    parser.add_argument("--batch_size", type=int, help="Examples per batch", default=60)
     parser.add_argument("--test_batch_size", type=int, help="Examples per batch", default=1000)
     parser.add_argument("--learning_rate", type=float, help="Learning rate for optimizer.", default=0.001)
     parser.add_argument('--processes', type=int, help='Number of workers for dataloader.', default=0)
-    parser.add_argument('--train_type', type=str, help="all-layers or one-layer", choices=['feature_extraction', 'full_finetune'], required=True)
-    parser.add_argument('--train_split', type=str, help="which split to train on", required=True, choices=split_choices)
-    parser.add_argument('--test_split', type=str, help="which split to test on", required=True, choices=split_choices)
+    parser.add_argument('--train_split', type=str, help="which split the saved weights were trained on", required=True)
+    parser.add_argument('--test_split', type=str, help="which split to test on", required=True)
     parser.add_argument('--to_classify', type=str, help="which column to classify", default='name')
     parser.add_argument('--testing', action='store_true', help='dont log the run to tensorboard')
     parser.add_argument('--display_batch_loss', action='store_true', help='Display loss at each batch in the training bar')
@@ -394,9 +269,8 @@ if __name__ == "__main__":
     date = datetime.now().strftime('%Y-%m-%d')
     full_exp_id = f"{args.exp_id}_{date}"
 
-    save_dir = f'{args.save_dir}DivShift_supervised_results/{full_exp_id}/'
+    save_dir = f'./DivShift_supervised_results/{full_exp_id}/'
     if not os.path.exists(save_dir):
-        print(f"making dir {save_dir}")
         os.makedirs(save_dir)
 
     # save hyperparameters
@@ -404,5 +278,4 @@ if __name__ == "__main__":
     with open(json_fname, 'w') as f:
         json.dump(vars(args), f, indent=4)
 
-    print('starting training')
     train(args, save_dir, full_exp_id, args.exp_id)
