@@ -208,7 +208,7 @@ def test_one_epoch(model, device, test_loader, epoch, logger, count, SummaryWrit
     return logger
 
 
-def train(args, save_dir, full_exp_id, exp_id):
+def train(args, save_dir, full_exp_id, model_weights, epoch):
 
     # dataset
     print('setting up dataset')
@@ -296,7 +296,9 @@ def train(args, save_dir, full_exp_id, exp_id):
             param.requires_grad = True
 
     params = model.parameters()
-
+    if model_weights is not None:
+        weights = torch.load(model_weights, map_location=device)
+        model.load_state_dict(weights['model_state_dict'], strict=True)
     model.to(device)
 
     if (args.optimizer == 'Adam'):
@@ -309,6 +311,9 @@ def train(args, save_dir, full_exp_id, exp_id):
         optimizer = optim.RMSprop(params, lr=args.learning_rate)
     else:
         raise NotImplemented
+    if model_weights is not None:
+        optimizer.load_state_dict(weights['optimizer_state_dict'])
+    
     print('starting training')
     # for logging purposes
     log_dir = f"{save_dir}logger"
@@ -322,7 +327,7 @@ def train(args, save_dir, full_exp_id, exp_id):
     countTrainBatch = 0
     countTestBatch = 0
     best_acc = 0.0
-    for epoch in range(args.num_epochs):
+    for epoch in range(epoch, args.num_epochs):
         print(f'starting epoch {epoch}')
         train_log = train_one_epoch(args, model, device, train_loader, optimizer, epoch, train_log, countTrainBatch, writer)
         test_log = test_one_epoch(model, device, test_loader, epoch, test_log, countTestBatch, writer)
@@ -370,6 +375,7 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Specify cli arguments.", allow_abbrev=True)
 
+    parser.add_argument("--restart", help="Whether to accumulate gradients across batches.", action='store_true')
     parser.add_argument('--device', type=int, help='what device number to use (-1 for cpu)', default=-1)
     parser.add_argument("--data_dir", type=str, help="Location of directory where train/test/val split are saved to.", required=True)
     parser.add_argument("--save_dir", type=str, help="Location of directory where models saved to.", default='./')
@@ -391,18 +397,47 @@ if __name__ == "__main__":
     parser.add_argument('--display_batch_loss', action='store_true', help='Display loss at each batch in the training bar')
 
     args = parser.parse_args()
-    # create dir for saving
-    date = datetime.now().strftime('%Y-%m-%d')
-    full_exp_id = f"{args.exp_id}_{date}"
 
-    save_dir = f'{args.save_dir}finetune_results/{full_exp_id}/'
-    if not os.path.exists(save_dir):
-        print(f"making dir {save_dir}")
-        os.makedirs(save_dir)
 
-    # save hyperparameters
-    json_fname = f'{save_dir}{full_exp_id}_hyperparams.json'
-    with open(json_fname, 'w') as f:
-        json.dump(vars(args), f, indent=4)
+    if args.restart:
 
-    train(args, save_dir, full_exp_id, args.exp_id)
+        full_exp_id = args.exp_id
+
+        save_dir = f'{args.save_dir}finetune_results/{args.exp_id}/'
+        finished = glob.glob(f"{save_dir}{args.exp_id}_epoch*.pth")
+        maxepoch = max([int(f.split('epoch')[-1].split('.pth')[0]) for f in finished])
+        bestmodel = f"{args.save_dir}/finetune_results/{args.exp_id}/{args.exp_id}_best_model.pth" 
+        bestepoch =  torch.load(modelweights, map_location=torch.device('cpu'))modeldata['epoch']
+        if bestepoch > maxepoch:
+            epoch = bestepoch
+            restart_epoch = 'best_model'
+        else:
+            epoch = maxepoch
+            restart_epoch = epoch
+            
+        
+        print(f"restarting {args.exp_id} from epoch {epoch}")
+        model_weights = f"{save_dir}{args.exp_id}_epoch{restart_epoch}.pth"
+        hyperparams = f"{save_dir}{args.exp_id}_hyperparams.json"
+        epoch = epoch +=1
+        with open(hyperparams, 'r') as f:
+            args_dict = json.load(f)
+            args = SimpleNamespace(**args_dict)
+        
+    else:
+        # create dir for saving
+        date = datetime.now().strftime('%Y-%m-%d')
+        full_exp_id = f"{args.exp_id}_{date}"
+        epoch = 0
+        model_weights = None
+        save_dir = f'{args.save_dir}finetune_results/{full_exp_id}/'
+        if not os.path.exists(save_dir):
+            print(f"making dir {save_dir}")
+            os.makedirs(save_dir)
+    
+        # save hyperparameters
+        json_fname = f'{save_dir}{full_exp_id}_hyperparams.json'
+        with open(json_fname, 'w') as f:
+            json.dump(vars(args), f, indent=4)
+
+    train(args, save_dir, full_exp_id, model_weights, epoch)
