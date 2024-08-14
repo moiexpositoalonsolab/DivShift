@@ -365,7 +365,8 @@ if __name__ == "__main__":
                     'imagenet',
                     'spatial_split',
                     'taxonomic_balanced',
-                    'taxonomic_unbalanced']
+                    'taxonomic_unbalanced',
+                    'random_split']
 
     parser = argparse.ArgumentParser(description="Specify cli arguments.", allow_abbrev=True)
 
