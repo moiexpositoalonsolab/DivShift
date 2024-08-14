@@ -395,7 +395,7 @@ if __name__ == "__main__":
     date = datetime.now().strftime('%Y-%m-%d')
     full_exp_id = f"{args.exp_id}_{date}"
 
-    save_dir = f'{args.save_dir}finetune_results/{full_exp_id}/'
+    save_dir = f'{args.save_dir}DivShift_supervised_results/{full_exp_id}/'
     if not os.path.exists(save_dir):
         print(f"making dir {save_dir}")
         os.makedirs(save_dir)
