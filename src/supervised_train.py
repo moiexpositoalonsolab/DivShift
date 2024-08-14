@@ -23,6 +23,7 @@ import torchvision.transforms as transforms
 import os
 import time
 import json
+import glob
 import socket
 import random
 import argparse
@@ -30,7 +31,7 @@ from tqdm import tqdm, trange
 from datetime import datetime
 import pandas as pd
 import dask.dataframe as dd
-
+from types import SimpleNamespace
 import pdb
 
 
@@ -407,19 +408,19 @@ if __name__ == "__main__":
         finished = glob.glob(f"{save_dir}{args.exp_id}_epoch*.pth")
         maxepoch = max([int(f.split('epoch')[-1].split('.pth')[0]) for f in finished])
         bestmodel = f"{args.save_dir}/finetune_results/{args.exp_id}/{args.exp_id}_best_model.pth" 
-        bestepoch =  torch.load(modelweights, map_location=torch.device('cpu'))['epoch']
+        bestepoch =  torch.load(bestmodel, map_location=torch.device('cpu'))['epoch']
         if bestepoch > maxepoch:
             epoch = bestepoch
             restart_epoch = 'best_model'
         else:
             epoch = maxepoch
-            restart_epoch = epoch
+            restart_epoch = f"epoch{epoch}"
             
         
         print(f"restarting {args.exp_id} from epoch {epoch}")
-        model_weights = f"{save_dir}{args.exp_id}_epoch{restart_epoch}.pth"
+        model_weights = f"{save_dir}{args.exp_id}_{restart_epoch}.pth"
         hyperparams = f"{save_dir}{args.exp_id}_hyperparams.json"
-        epoch = epoch +=1
+        epoch +=1
         with open(hyperparams, 'r') as f:
             args_dict = json.load(f)
             args = SimpleNamespace(**args_dict)
