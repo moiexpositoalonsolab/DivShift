@@ -68,7 +68,7 @@ def inference(args):
         print('setting up test dataset')
         # Get test data
         if (args.test_split in ddf.columns):
-            if use_entire_test:
+            if args.use_entire_test:
                 test_df = ddf[(ddf['supervised'] == True) & ((ddf[args.test_split] == 'test') | (ddf[args.test_split] == 'train'))]
             else:
                 test_df = ddf[(ddf['supervised'] == True) & (ddf[args.test_split] == 'test')]
