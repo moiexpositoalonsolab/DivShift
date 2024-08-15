@@ -183,7 +183,7 @@ def species_topK(ytrue, yobs, K):
 
 def subset_topK(labels, probits, rows_to_keep, K):
     fyt, fyo = labels.clone(), probits.clone()
-    fyt = torch.tensor([(i, y) for i, y in zip(range(len(fyt)), fyt.tolist()) if y in sublabels])
+    fyt = torch.tensor([(i, y) for i, y in zip(range(len(fyt)), fyt.tolist()) if y in rows_to_keep])
     idxs, fyt = zip(*fyt)
     fyt = torch.stack(fyt)
     assert len(fyt.shape) == 1, f"labels are the wrong shape! {fyt.shape}"
