@@ -35,19 +35,34 @@ import pdb
 import numpy as np
 
 
+
+
+
 # ----------------- Training ----------------- #
 def inference(args):
 
     if args.temp_elena_src:
     ################ from elena ################
-    # # Get training data
+        label_dict = {}
+        # Standard transform for ImageNet
+        transform = transforms.Compose([transforms.Resize(256), 
+                                        transforms.CenterCrop(224),
+                                        transforms.Normalize(mean=[0.485, 
+                                                                   0.456, 
+                                                                   0.406], 
+                                                             std=[0.229, 
+                                                                  0.224, 
+                                                                  0.225]),])
+        # Get training data
         ddf = pd.read_csv(f'{args.data_dir}/splits.csv')
         #TODO add logic for different train/test splits
         if (args.train_split in ddf.columns):
             train_df = ddf[(ddf['supervised'] == True) & 
+               (ddf['download_success'] == 'yes') &
                (ddf[args.train_split] == 'train')]
         elif (args.train_split == '2019-2021'):
             train_df = ddf[(ddf['supervised'] == True) & 
+               (ddf['download_success'] == 'yes') & 
                ((pd.to_datetime(ddf['date']).dt.year == 2019) | (pd.to_datetime(ddf['date']).dt.year == 2020) | (pd.to_datetime(ddf['date']).dt.year == 2021))]
         else:
             raise ValueError('Please select a valid train_split')
@@ -59,29 +74,19 @@ def inference(args):
             if (label not in label_dict):
                 label_dict[label] = i
                 i += 1
-        
-        train_image_dir = args.data_dir
-        
-        train_dset = supervised_dataset.LabelsDataset(train_df, train_image_dir,
-                                                   label_dict, args.to_classify, 
-                                                   transform=transform, 
-                                                   target_transform=None)
-        train_loader = DataLoader(train_dset, args.batch_size, 
-                                  shuffle=True, num_workers=args.processes)
-        
+    
+    
+    
         # Get test data
-        #TODO downl0ad_success 
+        #TODO add logic for different train/test splits
         if (args.test_split in ddf.columns):
-            if args.use_entire_split:
-                test_df = ddf[(ddf['supervised'] == True)  &
-                ((ddf[args.test_split] == 'test') | (ddf[args.test_split] == 'train'))]
-            else:
-                test_df = ddf[(ddf['supervised'] == True) & 
-                   (ddf[args.test_split] == 'test')]
+            test_df = ddf[(ddf['supervised'] == True) & 
+               (ddf['download_success'] == 'yes') &
+               (ddf[args.test_split] == 'test')]
         elif (args.test_split == '2022'):
-            test_df = ddf[(ddf['supervised'] == True) & (pd.to_datetime(ddf['date']).dt.year == 2022)]
+            test_df = ddf[(ddf['supervised'] == True) & (ddf['download_success'] == 'yes') & (pd.to_datetime(ddf['date']).dt.year == 2022)]
         elif (args.test_split == '2023'):
-            test_df = ddf[(ddf['supervised'] == True) & (pd.to_datetime(ddf['date']).dt.year == 2023)]
+            test_df = ddf[(ddf['supervised'] == True) & (ddf['download_success'] == 'yes') & (pd.to_datetime(ddf['date']).dt.year == 2023)]
         else:
             raise ValueError('Please select a valid test_split')
         
