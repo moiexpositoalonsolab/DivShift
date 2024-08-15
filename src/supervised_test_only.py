@@ -118,6 +118,7 @@ def inference(args):
         model = models.resnet18()
         model.fc = nn.Linear(model.fc.in_features, len(label_dict))
         model.load_state_dict(modeldata["model_state_dict"], strict=True)
+        print(f"loaded model from {modeldata['epoch']}")
     lastmodel = f"{args.model_dir}/finetune_results/{args.exp_id}/{args.exp_id}_epoch{hyperparams.num_epochs - 1}.pth"
     if not os.path.exists(lastmodel):
         raise ValueError(f"WARNING: {args.exp_id} has not finished training! Best epoch is {bestepoch} and total number of expeced epochs is {hyperparams.num_epochs }")
@@ -127,7 +128,7 @@ def inference(args):
     
     model.eval()
     all_logits, all_labels = [], []
-    test_loss = 0.0
+
     with torch.no_grad():
         for data, target in tqdm(test_loader, total=len(test_loader), 
                                  desc=f'testing model from epoch {bestepoch}'):
@@ -137,7 +138,6 @@ def inference(args):
             all_logits.append(output.detach().cpu())
             all_labels.append(target.detach().cpu())
             
-            test_loss += F.cross_entropy(output, target, reduction='sum').item()
 
     all_logits = torch.cat(all_logits, dim=0)
     labels = torch.cat(all_labels, dim=0)
@@ -145,6 +145,7 @@ def inference(args):
     probits = F.softmax(all_logits, dim=1)
     probits = probits.detach().cpu()
     top1, top5 = utils.obs_topK(labels, probits, K=5) 
+    print(f"top 1 is {top1} and top5 is {top}")
     _, top30 = utils.obs_topK(labels, probits, K=30) 
     spectop1 = utils.species_topK(labels, probits, K=1)
     spectop5 = utils.species_topK(labels, probits, K=5)
@@ -226,8 +227,7 @@ def inference(args):
             'eco_top_1' : [etop1],
             'eco_top_5' : [etop5],
             'luc_top_1' : [luctop1],
-            'luc_top_5' : [luctop5],
-            'test_loss' : [test_loss],
+            'luc_top_5' : [luctop5]
            }
     res = pd.DataFrame({**results, **eco_results1, **eco_results5, **luc_results1, **luc_results5})
     # save accs to group csv
