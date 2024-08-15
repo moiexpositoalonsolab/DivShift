@@ -190,7 +190,7 @@ def subset_topK(labels, probits, rows_to_keep, K):
     fyt = fyt[rows_to_keep]
     assert len(fyo.shape) > 1, f"predictions are the wrong shape! {fyo.shape}"
     fyo = fyo[rows_to_keep, :]
-    return species_topK(fyt, fyo, K=1), species_topK(fyt, fyo, K=K), obs_topK(fyt.clone(), fyo.clone)
+    return species_topK(fyt, fyo, K=1), species_topK(fyt, fyo, K=K), obs_topK(fyt.clone(), fyo.clone())
 
 def rarity_weighted_topK(ytrue, yobs, K):
     nspecs = yobs.shape[1]
