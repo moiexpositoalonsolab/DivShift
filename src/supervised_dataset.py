@@ -48,10 +48,10 @@ class LabelsDataset(Dataset):
 
 
         # ecoregions
-        self.l2_ecoregions = {}
+        self.l2_ecoregion = {}
         df = data_frame.reset_index()
         for ecoregion, smalldf  in df.groupby('l2_ecoregion'):
-            self.l2_ecoregions[ecoregion] = smalldf.index 
+            self.l2_ecoregion[ecoregion] = smalldf.index 
         # land use
         self.land_use = {}
         df = data_frame.reset_index()
