@@ -174,8 +174,8 @@ def inference(args):
         e1, e5 = utils.obs_topK(sublabels, subpreds, K=5)
         eco_results1[f"{ecoregion}_top_1"] = e1
         eco_results5[f"{ecoregion}_top_5"] = e5
-    etop1 = np.mean(eco_results1.values())
-    etop5 = np.mean(eco_results5.values())
+    etop1 = np.mean(list(eco_results1.values()))
+    etop5 = np.mean(list(eco_results5.values()))
 
 
 
@@ -188,8 +188,8 @@ def inference(args):
         e1, e5 = utils.obs_topK(sublabels, subpreds, K=5)
         luc_results1[f"luc_{ecoregion}_top_1"] = e1
         luc_results5[f"luc_{ecoregion}_top_5"] = e5
-    luctop1 = np.mean(luc_results1.values())
-    luctop5 = np.mean(luc_results5.values())
+    luctop1 = np.mean(list(luc_results1.values()))
+    luctop5 = np.mean(list(luc_results5.values()))
 
     # TODO: update extra tidbits to save
     results = {
