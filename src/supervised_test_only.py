@@ -145,6 +145,7 @@ def inference(args):
     probits = F.softmax(all_logits, dim=1)
     probits = probits.detach().cpu()
     top1, top5 = utils.obs_topK(labels, probits, K=5) 
+    _, top30 = utils.obs_topK(labels, probits, K=30) 
     spectop1 = utils.species_topK(labels, probits, K=1)
     spectop5 = utils.species_topK(labels, probits, K=5)
     spectop30 = utils.species_topK(labels, probits, K=30)
