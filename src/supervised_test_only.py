@@ -203,7 +203,7 @@ def inference(args):
             'learning_rate' : [hyperparams.learning_rate],
             'batch_size' : [hyperparams.batch_size],
             'optimizer' : [hyperparams.optimizer],
-            'date' : [datetime.datetime.now()],
+            'date' : [datetime.now()],
             'obs_top_1' : [top1],
             'obs_top_5' : [top5],
             'obs_top_30' : [top30],
