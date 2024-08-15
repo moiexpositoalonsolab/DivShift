@@ -181,16 +181,15 @@ def species_topK(ytrue, yobs, K):
     gsas = sas[~np.isnan(sas)]
     return (sum(gsas) / len(gsas))
 
-def subset_topK(labels, probits, rows_to_keep, K):
+def subset_topK(labels, probits, sublabels, K):
     fyt, fyo = labels.clone(), probits.clone()
-    fyt = torch.tensor([(i, y) for i, y in zip(range(len(fyt)), fyt.tolist()) if y in rows_to_keep])
+    fyt = torch.tensor([(i, y) for i, y in zip(range(len(fyt)), fyt.tolist()) if y in sublabels])
     idxs, fyt = zip(*fyt)
     fyt = torch.stack(fyt)
-    assert len(fyt.shape) == 1, f"labels are the wrong shape! {fyt.shape}"
-    fyt = fyt[rows_to_keep]
-    assert len(fyo.shape) > 1, f"predictions are the wrong shape! {fyo.shape}"
-    fyo = fyo[rows_to_keep, :]
-    return species_topK(fyt, fyo, K=1), species_topK(fyt, fyo, K=K), obs_topK(fyt.clone(), fyo.clone())
+    idxs = torch.stack(idxs)
+    fyo = fyo[idxs, :]
+    return species_topK(fyt, fyo, K=K)
+
 
 def rarity_weighted_topK(ytrue, yobs, K):
     nspecs = yobs.shape[1]
