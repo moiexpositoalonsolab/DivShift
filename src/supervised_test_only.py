@@ -110,14 +110,17 @@ def inference(args):
     
     modeldata = torch.load(modelweights, map_location=torch.device('cpu'))
     bestepoch = modeldata['epoch'] + 1
+
     if (args.model == 'ResNet50'):
         model = models.resnet50()
         model.fc = nn.Linear(model.fc.in_features, len(label_dict))
         model.load_state_dict(modeldata["model_state_dict"], strict=True)
     else:
         model = models.resnet18()
+        print(model.conv1.weight[0]) # shows random weights
         model.fc = nn.Linear(model.fc.in_features, len(label_dict))
         model.load_state_dict(modeldata["model_state_dict"], strict=True)
+        print(model.conv1.weight[0]) # should show pretrained weights
     lastmodel = f"{args.model_dir}/finetune_results/{args.exp_id}/{args.exp_id}_epoch{hyperparams.num_epochs - 1}.pth"
     if not os.path.exists(lastmodel):
         raise ValueError(f"WARNING: {args.exp_id} has not finished training! Best epoch is {bestepoch} and total number of expeced epochs is {hyperparams.num_epochs }")
