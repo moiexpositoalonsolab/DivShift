@@ -222,18 +222,30 @@ def inference(args):
     weighttop5 = utils.rarity_weighted_topK(labels, probits, K=5)
     weighttop30 = utils.rarity_weighted_topK(labels, probits, K=30)
 
-    fartop1 = utils.subset_topK(labels, probits, test_dset.farlabs, 1)
-    fartop5 = utils.subset_topK(labels, probits, test_dset.farlabs, 5)
-    fartop30 = utils.subset_topK(labels, probits, test_dset.farlabs, 30)
+    checkfar =  sum([sp in test_dset.far for sp in  test_df[args.to_classify].unique()]) > 1
+    if checkfar:
+        fartop1 = utils.subset_topK(labels, probits, test_dset.farlabs, 1)
+        fartop5 = utils.subset_topK(labels, probits, test_dset.farlabs, 5)
+        fartop30 = utils.subset_topK(labels, probits, test_dset.farlabs, 30)
+    else:
+        fartop1, fartop5, fartop30 = np.nan, np.nan, np.nan
 
-    cartop1 = utils.subset_topK(labels, probits, test_dset.carlabs, 1)
-    cartop5 = utils.subset_topK(labels, probits, test_dset.carlabs, 5)
-    cartop30 = utils.subset_topK(labels, probits, test_dset.carlabs, 30)
-
-    rartop1 = utils.subset_topK(labels, probits, test_dset.rarlabs, 1)
-    rartop5 = utils.subset_topK(labels, probits, test_dset.rarlabs, 5)
-    rartop30 = utils.subset_topK(labels, probits, test_dset.rarlabs, 30)
-
+    
+    checkcar =  sum([sp in test_dset.car for sp in  test_df[args.to_classify].unique()]) > 1
+    if checkcar:
+        cartop1 = utils.subset_topK(labels, probits, test_dset.carlabs, 1)
+        cartop5 = utils.subset_topK(labels, probits, test_dset.carlabs, 5)
+        cartop30 = utils.subset_topK(labels, probits, test_dset.carlabs, 30)
+    else:
+        cartop1, cartop5, cartop30 = np.nan, np.nan, np.nan
+        
+    checkrar =  sum([sp in test_dset.rar for sp in test_df[args.to_classify].unique()]) > 1
+    if checkrar:
+        rartop1 = utils.subset_topK(labels, probits, test_dset.rarlabs, 1)
+        rartop5 = utils.subset_topK(labels, probits, test_dset.rarlabs, 5)
+        rartop30 = utils.subset_topK(labels, probits, test_dset.rarlabs, 30)
+    else:
+        rartop1, rartop5, rartop30 = np.nan, np.nan, np.nan
 
     # ecoregion
     eco_results1 = {}

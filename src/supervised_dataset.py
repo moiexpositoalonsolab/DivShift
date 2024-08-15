@@ -37,13 +37,13 @@ class LabelsDataset(Dataset):
         with open(meta_path, 'r') as file:
             metadata = json.load(file)
         # set up groupings for split accuracy rankings
-        far = metadata['far']
-        car = metadata['car']
-        rar = metadata['rar']
+        self.far = metadata['far']
+        self.car = metadata['car']
+        self.rar = metadata['rar']
 
-        self.farlabs = [self.label_dict[n] for n in far if n in self.label_dict.keys()]
-        self.carlabs = [self.label_dict[n] for n in car if n in self.label_dict.keys()]
-        self.rarlabs = [self.label_dict[n] for n in rar if n in self.label_dict.keys()]
+        self.farlabs = [self.label_dict[n] for n in self.far if n in self.label_dict.keys()]
+        self.carlabs = [self.label_dict[n] for n in self.car if n in self.label_dict.keys()]
+        self.rarlabs = [self.label_dict[n] for n in self.rar if n in self.label_dict.keys()]
         print(f"using {len(self.farlabs)} frequent species, {len(self.carlabs)} frequent species, and {len(self.rarlabs)} rare species")
 
 
