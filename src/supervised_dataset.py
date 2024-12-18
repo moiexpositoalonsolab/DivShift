@@ -22,6 +22,24 @@ from PIL import Image
 
 # ----------------- Dataset classes ----------------- #
 
+
+def randomize_train_test(df, partition, generator):
+    # only pick from eligible observations
+    notrain = df[partition].value_counts()['train']
+    notest = df[partition].value_counts()['test']
+    
+    obs = df[~df[partition].isna()]
+    
+    chosen = rand_gen.choice(obs.index, math.floor(len(obs)*.2), replace=False)
+    df.loc[chosen, partition] = 'test'
+    notc = obs.index.difference(chosen)
+    df.loc[notc, partition] = 'train'
+    aftrain = df[partition].value_counts()['train']
+    aftest = df[partition].value_counts()['test']
+    assert notrain == aftrain, f'new number of train observations doesnt match! {notrain} vs {aftrain}' 
+    assert notest == aftest, f'new number of test observations doesnt match! {notest} vs {aftest}' 
+    return df
+
 # class providing tensor of image and its label for the DivShift dataset
 class LabelsDataset(Dataset):
     def __init__(self, data_frame, img_dir, label_dict, to_classify, transform, target_transform=None):
@@ -36,7 +54,7 @@ class LabelsDataset(Dataset):
         meta_path = f"{img_dir}/splits_lauren_far_car_rar.json"
         with open(meta_path, 'r') as file:
             metadata = json.load(file)
-        # set up groupings for split accuracy rankings
+        # set up groupings for partition accuracy rankings
         self.far = metadata['far']
         self.car = metadata['car']
         self.rar = metadata['rar']

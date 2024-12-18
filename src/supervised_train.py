@@ -226,14 +226,23 @@ def train(args, save_dir, full_exp_id, model_weights, epoch):
                                                                   0.225]),])
         # Get training data
         ddf = pd.read_csv(f'{args.data_dir}/splits_lauren.csv')
+        if args.randomize_partitions is not None:
+            # re-assign obs in each partition to train/test
+            rand_gen = np.random.default_rng(seed=args.randomize_partitions)
+            ddf = supervised_dataset.randomize_train_test(ddf, args.train_partition, rand_gen)
+            ddf = supervised_dataset.randomize_train_test(ddf, args.test_partition, rand_gen)
         #TODO add logic for different train/test splits
-        if (args.train_split in ddf.columns):
-            train_df = ddf[(ddf['supervised'] == True) & (ddf[args.train_split] == 'train')]
-        elif (args.train_split == '2019-2021'):
+        if (args.train_partition in ddf.columns):
+            train_df = ddf[(ddf['supervised'] == True) & (ddf[args.train_partition] == 'train')]
+        # TODO: test!
+        if args.train_partition_size == 'A+B':
+            addl_df = ddf[(ddf['supervised'] == True) & (ddf[args.test_partition] == 'train')]
+            train_df = pd.concat([train_df, addl_df])
+        if (args.train_partition == '2019-2021'):
             train_df = ddf[(ddf['supervised'] == True) &
                ((pd.to_datetime(ddf['date']).dt.year == 2019) | (pd.to_datetime(ddf['date']).dt.year == 2020) | (pd.to_datetime(ddf['date']).dt.year == 2021))]
         else:
-            raise ValueError('Please select a valid train_split')
+            raise ValueError('Please select a valid train_partition')
 
         # associate class with index
         print(f"train df is this size: {train_df.shape} with {len(train_df['name'].unique())} labels")
@@ -256,14 +265,14 @@ def train(args, save_dir, full_exp_id, model_weights, epoch):
                                   shuffle=True, num_workers=args.processes)
         print('setting up test dataset')
         # Get test data
-        if (args.test_split in ddf.columns):
-            test_df = ddf[(ddf['supervised'] == True) & (ddf[args.test_split] == 'test')]
-        elif (args.test_split == '2022'):
+        if (args.test_partition in ddf.columns):
+            test_df = ddf[(ddf['supervised'] == True) & (ddf[args.test_partition] == 'test')]
+        elif (args.test_partition == '2022'):
             test_df = ddf[(ddf['supervised'] == True) & (ddf['download_success'] == 'yes') & (pd.to_datetime(ddf['date']).dt.year == 2022)]
-        elif (args.test_split == '2023'):
+        elif (args.test_partition == '2023'):
             test_df = ddf[(ddf['supervised'] == True) & (ddf['download_success'] == 'yes') & (pd.to_datetime(ddf['date']).dt.year == 2023)]
         else:
-            raise ValueError('Please select a valid test_split')
+            raise ValueError('Please select a valid test_partition')
 
         test_df = test_df.loc[test_df[args.to_classify].isin(label_dict)]
 
@@ -346,7 +355,7 @@ def train(args, save_dir, full_exp_id, model_weights, epoch):
 
 
 if __name__ == "__main__":
-    split_choices = ['2019-2021',
+    partition_choices = ['2019-2021',
                      '2022',
                      '2023',
                     'not_city_nature',
@@ -390,9 +399,11 @@ if __name__ == "__main__":
     parser.add_argument("--test_batch_size", type=int, help="Examples per batch", default=1000)
     parser.add_argument("--learning_rate", type=float, help="Learning rate for optimizer.", default=0.001)
     parser.add_argument('--processes', type=int, help='Number of workers for dataloader.', default=0)
+    parser.add_argument('--randomize_partitions', type=int, help="whether to use the default DivShift random partition splits (val: -1) or randomly re-assign the partitions into 80/20 train test", default=None)
     parser.add_argument('--train_type', type=str, help="all-layers or one-layer", choices=['feature_extraction', 'full_finetune'], required=True)
-    parser.add_argument('--train_split', type=str, help="which split to train on", required=True, choices=split_choices)
-    parser.add_argument('--test_split', type=str, help="which split to test on", required=True, choices=split_choices)
+    parser.add_argument('--train_partition', type=str, help="which partition to train on", required=True, choices=partition_choices)
+    parser.add_argument('--test_partition', type=str, help="which partition to test on", required=True, choices=partition_choices)
+    parser.add_argument('--train_partition_size', type=str, help='Whether to train on Atrain or Atrain+Btrain', default='A', choices=['A', 'A+B'])
     parser.add_argument('--to_classify', type=str, help="which column to classify", default='name')
     parser.add_argument('--testing', action='store_true', help='dont log the run to tensorboard')
     parser.add_argument('--display_batch_loss', action='store_true', help='Display loss at each batch in the training bar')
