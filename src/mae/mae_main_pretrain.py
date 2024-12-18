@@ -206,7 +206,7 @@ def main(args, save_dir, log_dir, da):
         if misc.is_main_process():
             if log_writer is not None:
                 log_writer.flush()
-            with open(os.path.join(save_dir, f"{da}_{args.view}_{args.dataset}_log.txt"), mode="a", encoding="utf-8") as f:
+            with open(os.path.join(save_dir, f"{da}_{args.dataset}_log.txt"), mode="a", encoding="utf-8") as f:
                 f.write(json.dumps(log_stats) + "\n")
 
     total_time = time.time() - start_time
@@ -219,7 +219,7 @@ if __name__ == '__main__':
     args = args.parse_args()
     da = datetime.datetime.now().strftime('%Y_%m_%d_%H-%M-%S')
     save_dir = f"{paths.MODELS}mae/"
-    log_dir = f"{paths.RUNS}/{da}_{socket.gethostname()}_mae_{args.view}"
+    log_dir = f"{paths.RUNS}/{da}_{socket.gethostname()}_mae"
     json_fname = f"{save_dir}{da}_mae_hyperparams.json"
     with open(json_fname, 'w') as f:
         tosave = vars(args)
