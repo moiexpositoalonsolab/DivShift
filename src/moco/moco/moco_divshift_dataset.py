@@ -57,9 +57,13 @@ class DivShiftPretrainDataset(Dataset):
         """
         self.base_dir = base_dir
         df = pd.read_csv(f"{base_dir}allobs_postGL_presplit.csv") # TODO: eventually make this the split csv
-        if not exclude_supervised:
+        print(f"{len(df)} observations before")
+        if exclude_supervised:
             self.df = df[~df.supervised]
             self.df.reset_index(inplace=True)
+            print(f"{len(self.df)} observations after")
+        else:
+            self.df = df
 
         self.imagenet_means = IMAGENET_MEANS
         self.imagenet_stds = IMAGENET_STDS
