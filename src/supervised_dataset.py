@@ -22,6 +22,47 @@ from PIL import Image
 
 # ----------------- Dataset classes ----------------- #
 
+# calculate jensen-shannon distance
+
+# calculate jensen-shannon distance
+def calculate_jsd(df, train_partition, test_partition, train_partition_size='A'):
+
+    # restrict to only observations used for training
+    df = df[(df['supervised'] == True)]
+    # P_a_train
+    if train_partition_size == 'A+B':
+        p_a_train = df[df[train_partition] == 'train']
+        p_b_train = df[df[test_partition] == 'train']
+        p_a_train = pd.concat([p_a_train, p_b_train])
+    else:
+        p_a_train = df[df[train_partition] == 'train']
+    # P_b_test
+    p_b_test = df[df[test_partition] == 'test']
+    # P_a_test
+    p_a_test = df[df[train_partition] == 'test']
+    # inline with model training,
+    # only consider labels present in
+    # the training set
+    to_keep = p_a_train.name.unique().tolist()
+
+    # get the count of each label in each partition subset
+    p_a_train_dict = p_a_train.name.value_counts()
+    p_b_test_dict = p_b_test.name.value_counts()
+    p_a_test_dict = p_a_test.name.value_counts()
+    # filter label counts per partition subset to only 
+    # consider those present in the training set
+    p_a_train_dist = [p_a_train_dict[spec] for spec in to_keep]
+    # if a label isn't present in the test set, impute 0 observations for that species
+    p_b_test_dist =  [p_b_test_dict[spec]  if spec in p_b_test_dict else 0 for spec in to_keep]
+    p_a_test_dist =  [p_a_test_dict[spec]  if spec in p_a_test_dict else 0 for spec in to_keep]
+
+    # base 2 to ensure 0-1 range
+    patr_pbte_dist = scipy.spatial.distance.jensenshannon(p_a_train_dist, p_b_test_dist, base=2) 
+    patr_pate_dist = scipy.spatial.distance.jensenshannon(p_a_train_dist, p_a_test_dist, base=2) 
+
+    return patr_pbte_dist, patr_pate_dist
+    
+    
 
 def randomize_train_test(df, partition, generator):
     # only pick from eligible observations

@@ -166,46 +166,6 @@ def test_one_epoch(model, device, test_loader, epoch, logger, count, SummaryWrit
     spectop5 = utils.species_topK(labels, probits, K=5)
     logger['1spec_acc'][epoch] = spectop1
     logger['5spec_acc'][epoch] = spectop5
-    """
-    IMPLEMENT UTILS FIRST
-    all_logits = torch.cat(all_logits, dim=0)
-    labels = torch.cat(all_labels, dim=0)
-    labels = labels.detach().cpu()
-    probits = F.softmax(all_logits, dim=1)
-    probits = probits.detach().cpu()
-    top1, top5 = utils.obs_topK(labels, probits, K=5)
-    spectop1 = utils.species_topK(labels, probits, K=1)
-    spectop5 = utils.species_topK(labels, probits, K=5)
-
-    # hacky, but filter to common, rare, etc species
-    # from auto arborist(ish)
-    fartop1 = utils.subset_topK(labels, probits, traindset.farlabs, 1)
-    fartop5 = utils.subset_topK(labels, probits, traindset.farlabs, 5)
-
-    cartop1 = utils.subset_topK(labels, probits, traindset.carlabs, 1)
-    cartop5 = utils.subset_topK(labels, probits, traindset.carlabs, 5)
-
-    rartop1 = utils.subset_topK(labels, probits, traindset.rarlabs, 1)
-    rartop5 = utils.subset_topK(labels, probits, traindset.rarlabs, 5)
-    print(top1, top5, spectop1, spectop5, fartop1, cartop1, rartop1)
-
-
-    if tb_writer is not None:
-        tb_writer.add_scalar("test/obs_top_5", top5, epoch)
-        tb_writer.add_scalar("test/obs_top_1", top1, epoch)
-        tb_writer.add_scalar("test/spec_top_1", spectop1, epoch)
-        tb_writer.add_scalar("test/spec_top_5", spectop5, epoch)
-        tb_writer.add_scalar("test/far_top_1", fartop1, epoch)
-        tb_writer.add_scalar("test/far_top_5", fartop5, epoch)
-        tb_writer.add_scalar("test/car_top_1", cartop1, epoch)
-        tb_writer.add_scalar("test/car_top_5", cartop5, epoch)
-        tb_writer.add_scalar("test/rar_top_1", rartop1, epoch)
-        tb_writer.add_scalar("test/rar_top_5", rartop5, epoch)
-
-
-    # using species top 1 as early stopping
-    return spectop1
-    """
     return logger
 
 
@@ -226,12 +186,27 @@ def train(args, save_dir, full_exp_id, model_weights, epoch):
                                                                   0.225]),])
         # Get training data
         ddf = pd.read_csv(f'{args.data_dir}/splits_lauren.csv')
+        # re-assign obs in each partition to train/test
         if args.randomize_partitions is not None:
-            # re-assign obs in each partition to train/test
             rand_gen = np.random.default_rng(seed=args.randomize_partitions)
             ddf = supervised_dataset.randomize_train_test(ddf, args.train_partition, rand_gen)
             ddf = supervised_dataset.randomize_train_test(ddf, args.test_partition, rand_gen)
-        #TODO add logic for different train/test splits
+
+
+        # get JSD between Pa train, Pb test, and Pa test
+        jsd_patr_pbte, jsd_patr_pate = calculate_jsd(ddf, args.train_partition, args.test_partition, args.train_partition_size)
+        
+        args.jsd_patr_pbte = jsd_patr_pbte
+        args.jsd_patr_pate = jsd_patr_pate
+        
+        # save out JSD w/ hyperparameters TODO: test
+        json_fname = f'{save_dir}{full_exp_id}_hyperparams.json'
+        with open(json_fname, 'w') as f:
+            json.dump(vars(args), f, indent=4)
+
+
+            
+
         if (args.train_partition in ddf.columns):
             train_df = ddf[(ddf['supervised'] == True) & (ddf[args.train_partition] == 'train')]
         # TODO: test!
@@ -248,12 +223,7 @@ def train(args, save_dir, full_exp_id, model_weights, epoch):
         print(f"train df is this size: {train_df.shape} with {len(train_df['name'].unique())} labels")
         label_dict = {spec: i for i, spec in enumerate(sorted(train_df[args.to_classify].unique().tolist()))}
         print(f"label dict is {len(label_dict)} with {min(list(label_dict.values()))} min label name and {max(list(label_dict.values()))} max label name")
-        # i = 0
-        # for row in range(train_df.shape[0]):
-        #     label = train_df.iloc[row][args.to_classify]
-        #     if (label not in label_dict):
-        #         label_dict[label] = i
-        #         i += 1
+
 
         train_image_dir = args.data_dir
 
