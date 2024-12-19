@@ -64,18 +64,23 @@ def inference(args):
                                                                   0.225]),])
         # Get training data
         ddf = pd.read_csv(f'{args.data_dir}/splits_lauren.csv')
-        # re-assign obs in each partition to train/test
-        if hyperparams.randomize_partitions is not None:
+        ddf = ddf['supervised'] == True
+# re-assign obs in each partition to train/test
+        if args.randomize_partitions is not None:
             rand_gen = np.random.default_rng(seed=hyperparams.randomize_partitions)
-            ddf = supervised_dataset.randomize_train_test(ddf, args.train_partition, rand_gen)
-            ddf = supervised_dataset.randomize_train_test(ddf, args.test_partition, rand_gen)
+
+            if args.train_partition in ['taxonomic_balanced', 'taxonomic_unbalanced']:
+                ddf = randomize_taxonomic_train_test(ddf, generator)
+            else:
+                ddf = supervised_dataset.randomize_train_test(ddf, args.train_partition, rand_gen)
+                ddf = supervised_dataset.randomize_train_test(ddf, args.test_partition, rand_gen)
 
         
         if (args.train_partition in ddf.columns):
-            train_df = ddf[(ddf['supervised'] == True) & (ddf[args.train_partition] == 'train')]
+            train_df = ddf[ddf[args.train_partition] == 'train']
         # TODO: test!
         if args.train_partition_size == 'A+B':
-            addl_df = ddf[(ddf['supervised'] == True) & (ddf[args.test_partition] == 'train')]
+            addl_df = ddf[ddf[args.test_partition] == 'train']
             train_df = pd.concat([train_df, addl_df])
         else:
             raise ValueError('Please select a valid train_partition')
@@ -88,9 +93,9 @@ def inference(args):
         # Get test data
         if (args.test_partition in ddf.columns):
             if args.use_entire_split:
-                test_df = ddf[(ddf['supervised'] == True) & ((ddf[args.test_partition] == 'test') | (ddf[args.test_partition] == 'train'))]
+                test_df = ddf[(ddf[args.test_partition] == 'test') | (ddf[args.test_partition] == 'train')]
             else:
-                test_df = ddf[(ddf['supervised'] == True) & (ddf[args.test_partition] == 'test')]
+                test_df = ddf[ddf[args.test_partition] == 'test']
 
 
         else:

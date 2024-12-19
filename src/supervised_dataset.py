@@ -85,6 +85,34 @@ def randomize_train_test(df, partition, generator):
     assert notest == aftest, f'new number of test observations doesnt match! {notest} vs {aftest}' 
     return df
 
+
+def randomize_taxonomic_train_test(df, generator):
+    
+    # hyperparameters from the supplemental
+    min_obs = 25
+    max_obs = 300
+
+    balanced_train = []
+    all_train = []
+    test = []
+    for spec, dff in tqdm(df.groupby('name'), total=len(df.groupby('name'))):
+        testidxs = rand_gen.choice(dff.index, math.floor(len(dff)*.2), replace=False)
+        remaining = dff.index.difference(testidxs).values
+        btrain = rand_gen.choice(remaining, max_obs, replace=False) if len(remaining) > max_obs else remaining
+        balanced_train += btrain.tolist()
+        all_train += remaining.tolist()
+        test += testidxs.tolist()
+
+    df['taxonomic_balanced'] = 'not_eligible'
+    df['taxonomic_unbalanced'] = 'not_eligible'
+
+    print(len(balanced_train), balanced_train[0])
+    df.loc[balanced_train, 'taxonomic_balanced'] = 'train'
+    df.loc[test, 'taxonomic_balanced'] = 'test'
+    df.loc[all_train, 'taxonomic_unbalanced'] = 'train'
+    df.loc[test, 'taxonomic_unbalanced'] = 'test'
+    return df
+
 # class providing tensor of image and its label for the DivShift dataset
 class LabelsDataset(Dataset):
     def __init__(self, data_frame, img_dir, label_dict, to_classify, transform, target_transform=None):
