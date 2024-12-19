@@ -187,20 +187,20 @@ def train(args, save_dir, full_exp_id, model_weights, epoch):
                                                                   0.225]),])
         # Get training data
         ddf = pd.read_csv(f'{args.data_dir}/splits_lauren.csv')
-        ddf = ddf['supervised'] == True
+        ddf = ddf[ddf['supervised'] == True]
         # re-assign obs in each partition to train/test
         if args.randomize_partitions is not None:
             rand_gen = np.random.default_rng(seed=args.randomize_partitions)
 
             if args.train_partition in ['taxonomic_balanced', 'taxonomic_unbalanced']:
-                ddf = randomize_taxonomic_train_test(ddf, generator)
+                ddf = supervised_dataset.randomize_taxonomic_train_test(ddf, generator)
             else:
                 ddf = supervised_dataset.randomize_train_test(ddf, args.train_partition, rand_gen)
                 ddf = supervised_dataset.randomize_train_test(ddf, args.test_partition, rand_gen)
 
 
         # get JSD between Pa train, Pb test, and Pa test
-        jsd_patr_pbte, jsd_patr_pate = calculate_jsd(ddf, args.train_partition, args.test_partition, args.train_partition_size)
+        jsd_patr_pbte, jsd_patr_pate = supervised_dataset.calculate_jsd(ddf, args.train_partition, args.test_partition, args.train_partition_size)
         
         args.jsd_patr_pbte = jsd_patr_pbte
         args.jsd_patr_pate = jsd_patr_pate
@@ -329,17 +329,17 @@ if __name__ == "__main__":
                      '2023',
                     'not_city_nature',
                     'city_nature',
-                    'alaska_socioeco',
-                    'arizona_socioeco',
-                    'baja_california_socioeco',
-                    'baja_california_sur_socioeco',
-                    'british_columbia_socioeco',
-                    'california_socioeco',
-                    'nevada_socioeco',
-                    'oregon_socioeco',
-                    'sonora_socioeco',
-                    'washington_socioeco',
-                    'yukon_socioeco',
+                    'alaska_socioeco', # 1
+                    'arizona_socioeco', # 1
+                    'baja_california_socioeco', # 1
+                    'baja_california_sur_socioeco', # 1
+                    'british_columbia_socioeco', # 1
+                    'california_socioeco', # 1
+                    'nevada_socioeco', # 1
+                    'oregon_socioeco', # 1
+                    'sonora_socioeco', # 1
+                    'washington_socioeco', # 1
+                    'yukon_socioeco', # 1
                     'quality_obs',
                     'casual_obs',
                     'footprint_wilderness',

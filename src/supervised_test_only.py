@@ -64,13 +64,13 @@ def inference(args):
                                                                   0.225]),])
         # Get training data
         ddf = pd.read_csv(f'{args.data_dir}/splits_lauren.csv')
-        ddf = ddf['supervised'] == True
+        ddf = ddf[ddf['supervised'] == True]
 # re-assign obs in each partition to train/test
         if args.randomize_partitions is not None:
             rand_gen = np.random.default_rng(seed=hyperparams.randomize_partitions)
 
             if args.train_partition in ['taxonomic_balanced', 'taxonomic_unbalanced']:
-                ddf = randomize_taxonomic_train_test(ddf, generator)
+                ddf = supervised_dataset.randomize_taxonomic_train_test(ddf, generator)
             else:
                 ddf = supervised_dataset.randomize_train_test(ddf, args.train_partition, rand_gen)
                 ddf = supervised_dataset.randomize_train_test(ddf, args.test_partition, rand_gen)
@@ -103,7 +103,7 @@ def inference(args):
 
 
         # get JSD between Pa train, Pb test, and Pa test
-        jsd_patr_pbte, jsd_patr_pate = calculate_jsd(ddf, args.train_partition, args.test_partition, args.train_partition_size, args.use_entire_split)
+        jsd_patr_pbte, jsd_patr_pate = supervised_dataset.calculate_jsd(ddf, args.train_partition, args.test_partition, args.train_partition_size, args.use_entire_split)
         
         test_df = test_df.loc[test_df[args.to_classify].isin(label_dict)]
 
