@@ -408,7 +408,7 @@ if __name__ == "__main__":
     else:
         # create dir for saving
         date = datetime.now().strftime('%Y-%m-%d')
-        full_exp_id = f"{args.train_partition}_train{args.test_partition}_test_{args.exp_id}_{date}"
+        full_exp_id = f"{args.train_partition}_train_{args.exp_id}_{date}"
         epoch = 0
         model_weights = None
         save_dir = f'{args.save_dir}finetune_results/{full_exp_id}/'
