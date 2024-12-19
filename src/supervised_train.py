@@ -239,7 +239,7 @@ def train(args, save_dir, full_exp_id, model_weights, epoch):
         print('setting up test dataset')
         # Get test data
         if (args.test_partition in ddf.columns):
-            test_df = ddf[(ddf[args.test_partition] == 'test']
+            test_df = ddf[ddf[args.test_partition] == 'test']
         else:
             raise ValueError('Please select a valid test_partition')
 
