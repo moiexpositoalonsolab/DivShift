@@ -22,11 +22,12 @@ from PIL import Image
 
 # ----------------- Dataset classes ----------------- #
 
-# calculate jensen-shannon distance
 
 # calculate jensen-shannon distance
-def calculate_jsd(df, train_partition, test_partition, train_partition_size='A'):
+def calculate_jsd(df, train_partition, test_partition, train_partition_size='A', use_entire_split=False):
 
+    if (train_partition == 'A+B') & use_entire_split:
+        raise ValueError("Warning! Trained on PAtrain and PBtrain but are testing on PBtest AND PBtrain!")
     # restrict to only observations used for training
     df = df[(df['supervised'] == True)]
     # P_a_train
@@ -37,7 +38,10 @@ def calculate_jsd(df, train_partition, test_partition, train_partition_size='A')
     else:
         p_a_train = df[df[train_partition] == 'train']
     # P_b_test
-    p_b_test = df[df[test_partition] == 'test']
+    if use_entire_split: # for when certain splits are very small
+        p_b_test = df[(df[test_partition] == 'test') | (df[test_partition] == 'train')]
+    else:
+        p_b_test = df[df[test_partition] == 'test']
     # P_a_test
     p_a_test = df[df[train_partition] == 'test']
     # inline with model training,

@@ -41,136 +41,82 @@ import numpy as np
 # ----------------- Training ----------------- #
 def inference(args):
 
-    if args.temp_elena_src:
-    ################ from elena ################
-        label_dict = {}
-        # Standard transform for ImageNet
-        transform = transforms.Compose([transforms.Resize(256), 
-                                        transforms.CenterCrop(224),
-                                        transforms.Normalize(mean=[0.485, 
-                                                                   0.456, 
-                                                                   0.406], 
-                                                             std=[0.229, 
-                                                                  0.224, 
-                                                                  0.225]),])
-        # Get training data
-        ddf = pd.read_csv(f'{args.data_dir}/splits.csv')
-        #TODO add logic for different train/test splits
-        if (args.train_split in ddf.columns):
-            train_df = ddf[(ddf['supervised'] == True) & 
-               (ddf['download_success'] == 'yes') &
-               (ddf[args.train_split] == 'train')]
-        elif (args.train_split == '2019-2021'):
-            train_df = ddf[(ddf['supervised'] == True) & 
-               (ddf['download_success'] == 'yes') & 
-               ((pd.to_datetime(ddf['date']).dt.year == 2019) | (pd.to_datetime(ddf['date']).dt.year == 2020) | (pd.to_datetime(ddf['date']).dt.year == 2021))]
-        else:
-            raise ValueError('Please select a valid train_split')
-        
-        # associate class with index
-        i = 0
-        for row in range(train_df.shape[0]):
-            label = train_df.iloc[row][args.to_classify]
-            if (label not in label_dict):
-                label_dict[label] = i
-                i += 1
-    
-    
-    
-        # Get test data
-        #TODO add logic for different train/test splits
-        if (args.test_split in ddf.columns):
-            test_df = ddf[(ddf['supervised'] == True) & 
-               (ddf['download_success'] == 'yes') &
-               (ddf[args.test_split] == 'test')]
-        elif (args.test_split == '2022'):
-            test_df = ddf[(ddf['supervised'] == True) & (ddf['download_success'] == 'yes') & (pd.to_datetime(ddf['date']).dt.year == 2022)]
-        elif (args.test_split == '2023'):
-            test_df = ddf[(ddf['supervised'] == True) & (ddf['download_success'] == 'yes') & (pd.to_datetime(ddf['date']).dt.year == 2023)]
-        else:
-            raise ValueError('Please select a valid test_split')
-        
-        test_df = test_df.loc[test_df[args.to_classify].isin(label_dict)]
-        test_image_dir = args.data_dir
-        
-        test_dset = supervised_dataset.LabelsDataset(test_df, test_image_dir, 
-                                                  label_dict, args.to_classify, 
-                                                  transform=transform, 
-                                                  target_transform=None)
-        test_loader = DataLoader(test_dset, args.test_batch_size, 
-                                 shuffle=True, num_workers=args.processes)
-    ################ from elena ################    
-    
-    ################ from lauren ################
-    else:
-        print('setting up dataset')
-        label_dict = {}
-        if args.dataset == "DivShift":
-            # Standard transform for ImageNet
-            transform = transforms.Compose([transforms.Resize(256),
-                                            transforms.CenterCrop(224),
-                                            transforms.Normalize(mean=[0.485,
-                                                                       0.456,
-                                                                       0.406],
-                                                                 std=[0.229,
-                                                                      0.224,
-                                                                      0.225]),])
-            # Get training data
-            ddf = pd.read_csv(f'{args.data_dir}/splits_lauren.csv')
-            if (args.train_split in ddf.columns):
-                train_df = ddf[(ddf['supervised'] == True) & (ddf[args.train_split] == 'train')]
-            elif (args.train_split == '2019-2021'):
-                train_df = ddf[(ddf['supervised'] == True) &
-                   ((pd.to_datetime(ddf['date']).dt.year == 2019) | (pd.to_datetime(ddf['date']).dt.year == 2020) | (pd.to_datetime(ddf['date']).dt.year == 2021))]
-            else:
-                raise ValueError('Please select a valid train_split')
-    
-            # associate class with index
-            print(f"train df is this size: {train_df.shape} with {len(train_df['name'].unique())} labels")
-            label_dict = {spec: i for i, spec in enumerate(sorted(train_df[args.to_classify].unique().tolist()))}
-            print(f"label dict is {len(label_dict)} with {min(list(label_dict.values()))} min label name and {max(list(label_dict.values()))} max label name")
-     
-            print('setting up test dataset')
-            # Get test data
-            if (args.test_split in ddf.columns):
-                if args.use_entire_split:
-                    test_df = ddf[(ddf['supervised'] == True) & ((ddf[args.test_split] == 'test') | (ddf[args.test_split] == 'train'))]
-                else:
-                    test_df = ddf[(ddf['supervised'] == True) & (ddf[args.test_split] == 'test')]
-            elif (args.test_split == '2022'):
-                test_df = ddf[(ddf['supervised'] == True) (pd.to_datetime(ddf['date']).dt.year == 2022)]
-            elif (args.test_split == '2023'):
-                test_df = ddf[(ddf['supervised'] == True) (pd.to_datetime(ddf['date']).dt.year == 2023)]
-            else:
-                raise ValueError('Please select a valid test_split')
-    
-            test_df = test_df.loc[test_df[args.to_classify].isin(label_dict)]
-    
-            print(f"test df is this size: {test_df.shape} with {len(test_df['name'].unique())} labels")
-    
-            test_image_dir = args.data_dir
-    
-            test_dset = supervised_dataset.LabelsDataset(test_df, test_image_dir,
-                                                      label_dict, args.to_classify,
-                                                      transform=transform,
-                                                      target_transform=None)
-            test_loader = DataLoader(test_dset, args.test_batch_size,
-                                     shuffle=True, num_workers=args.processes)
-
-    ################ from lauren ################
-    # device
-    device = torch.device(f"cuda:{args.device}" if args.device >=0 else "cpu")
-    print(f"Experiment running on device: {device}")
-
-    # model
-
     # read hyperparameters of model
     metadata = f"{args.model_dir}/finetune_results/{args.exp_id}/{args.exp_id}_hyperparams.json"
     modelweights = f"{args.model_dir}/finetune_results/{args.exp_id}/{args.exp_id}_best_model.pth" 
     with open(metadata, 'r') as f:
         hyperparams = json.load(f)
         hyperparams = SimpleNamespace(**hyperparams)
-    
+    assert args.train_partition == hyperparams.train_partition, f"Train partition out of alignment with hyperparameters! {args.train_partition} vs {hyperparams.train_partition}"
+
+
+    print('setting up dataset')
+    label_dict = {}
+    if args.dataset == "DivShift":
+        # Standard transform for ImageNet
+        transform = transforms.Compose([transforms.Resize(256),
+                                        transforms.CenterCrop(224),
+                                        transforms.Normalize(mean=[0.485,
+                                                                   0.456,
+                                                                   0.406],
+                                                             std=[0.229,
+                                                                  0.224,
+                                                                  0.225]),])
+        # Get training data
+        ddf = pd.read_csv(f'{args.data_dir}/splits_lauren.csv')
+        # re-assign obs in each partition to train/test
+        if hyperparams.randomize_partitions is not None:
+            rand_gen = np.random.default_rng(seed=hyperparams.randomize_partitions)
+            ddf = supervised_dataset.randomize_train_test(ddf, args.train_partition, rand_gen)
+            ddf = supervised_dataset.randomize_train_test(ddf, args.test_partition, rand_gen)
+
+        
+        if (args.train_partition in ddf.columns):
+            train_df = ddf[(ddf['supervised'] == True) & (ddf[args.train_partition] == 'train')]
+        # TODO: test!
+        if args.train_partition_size == 'A+B':
+            addl_df = ddf[(ddf['supervised'] == True) & (ddf[args.test_partition] == 'train')]
+            train_df = pd.concat([train_df, addl_df])
+        else:
+            raise ValueError('Please select a valid train_partition')
+        # associate class with index
+        print(f"train df is size: {train_df.shape} with {len(train_df['name'].unique())} labels")
+        label_dict = {spec: i for i, spec in enumerate(sorted(train_df[args.to_classify].unique().tolist()))}
+        print(f"Have {len(label_dict)} species with {min(list(label_dict.values()))} min label name and {max(list(label_dict.values()))} max label name")
+ 
+        print('setting up test dataset')
+        # Get test data
+        if (args.test_partition in ddf.columns):
+            if args.use_entire_split:
+                test_df = ddf[(ddf['supervised'] == True) & ((ddf[args.test_partition] == 'test') | (ddf[args.test_partition] == 'train'))]
+            else:
+                test_df = ddf[(ddf['supervised'] == True) & (ddf[args.test_partition] == 'test')]
+
+
+        else:
+            raise ValueError('Please select a valid test_partition')
+
+
+        # get JSD between Pa train, Pb test, and Pa test
+        jsd_patr_pbte, jsd_patr_pate = calculate_jsd(ddf, args.train_partition, args.test_partition, args.train_partition_size, args.use_entire_split)
+        
+        test_df = test_df.loc[test_df[args.to_classify].isin(label_dict)]
+
+        print(f"test df is size: {test_df.shape} with {len(test_df['name'].unique())} labels")
+
+        test_image_dir = args.data_dir
+
+        test_dset = supervised_dataset.LabelsDataset(test_df, test_image_dir,
+                                                  label_dict, args.to_classify,
+                                                  transform=transform,
+                                                  target_transform=None)
+        test_loader = DataLoader(test_dset, args.test_batch_size,
+                                 shuffle=True, num_workers=args.processes)
+
+    # device
+    device = torch.device(f"cuda:{args.device}" if args.device >=0 else "cpu")
+    print(f"Experiment running on device: {device}")
+
     
     
     modeldata = torch.load(modelweights, map_location=torch.device('cpu'))
@@ -189,7 +135,7 @@ def inference(args):
         print(f"loaded model from {modeldata['epoch']}")
     lastmodel = f"{args.model_dir}/finetune_results/{args.exp_id}/{args.exp_id}_epoch{hyperparams.num_epochs - 1}.pth"
     if not os.path.exists(lastmodel):
-        raise ValueError(f"WARNING: {args.exp_id} has not finished training! Best epoch is {bestepoch} and total number of expeced epochs is {hyperparams.num_epochs }")
+        raise ValueError(f"WARNING: {args.exp_id} has not finished training! Best epoch is {bestepoch} and total number of expected epochs is {hyperparams.num_epochs }")
     
     model.to(device)
     print(f'starting test')
@@ -278,14 +224,15 @@ def inference(args):
             'best_epoch' : [bestepoch],
             'model' : [hyperparams.model],
             'exp_id' : [args.exp_id],
-            'test_split' : [args.test_split],
+            'test_partition' : [args.test_partition],
             'use_all_test' : [args.use_entire_split],
-            'train_split' : [hyperparams.train_split],
+            'train_partition' : [hyperparams.train_partition],
             'train_type' : [hyperparams.train_type],
             'learning_rate' : [hyperparams.learning_rate],
             'batch_size' : [hyperparams.batch_size],
             'optimizer' : [hyperparams.optimizer],
             'date' : [datetime.now()],
+            'node' : [socket.gethostname()],
             'obs_top_1' : [top1],
             'obs_top_5' : [top5],
             'obs_top_30' : [top30],
@@ -307,11 +254,13 @@ def inference(args):
             'eco_top_1' : [etop1],
             'eco_top_5' : [etop5],
             'luc_top_1' : [luctop1],
-            'luc_top_5' : [luctop5]
+            'luc_top_5' : [luctop5],
+            'jsd_patr_pbte' : [jsd_patr_pbte],
+            'jsd_patr_pate' : [jsd_patr_pate]
            }
     res = pd.DataFrame({**results, **eco_results1, **eco_results5, **luc_results1, **luc_results5})
     # save accs to group csv
-    total_csv = f"{args.data_dir}/inference/{args.dataset}_{args.train_split}_overall__{socket.gethostname()}.csv"
+    total_csv = f"{args.data_dir}/inference/{args.dataset}_{args.train_partition}_overall__{socket.gethostname()}.csv"
     print('saving overall results')
     if not os.path.exists(total_csv):
         res.to_csv(total_csv, index=False)
@@ -337,10 +286,9 @@ if __name__ == "__main__":
     parser.add_argument("--exp_id", type=str, help="Experiment name of trained model.", required=True)
     parser.add_argument("--test_batch_size", type=int, help="Examples per batch", default=1000)
     parser.add_argument('--processes', type=int, help='Number of workers for dataloader.', default=0)
-    parser.add_argument('--train_split', type=str, help="which split the saved weights were trained on", required=True)
-    parser.add_argument('--test_split', type=str, help="which split to test on", required=True)
+    parser.add_argument('--train_partition', type=str, help="which split the saved weights were trained on", required=True)
+    parser.add_argument('--test_partition', type=str, help="which split to test on", required=True)
     parser.add_argument('--use_entire_split', action='store_true', help='for splits with few observations, opt to use the entire split')
-    parser.add_argument('--temp_elena_src', action='store_true', help='whether to use old or new way of split loading')
     parser.add_argument('--to_classify', type=str, help="which column to classify", default='name')
     parser.add_argument('--testing', action='store_true', help='dont log the run to tensorboard')
     
