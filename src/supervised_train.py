@@ -193,7 +193,7 @@ def train(args, save_dir, full_exp_id, model_weights, epoch):
             rand_gen = np.random.default_rng(seed=args.randomize_partitions)
 
             if args.train_partition in ['taxonomic_balanced', 'taxonomic_unbalanced']:
-                ddf = supervised_dataset.randomize_taxonomic_train_test(ddf, generator)
+                ddf = supervised_dataset.randomize_taxonomic_train_test(ddf, rand_gen)
             else:
                 ddf = supervised_dataset.randomize_train_test(ddf, args.train_partition, rand_gen)
                 ddf = supervised_dataset.randomize_train_test(ddf, args.test_partition, rand_gen)
