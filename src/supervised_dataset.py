@@ -15,6 +15,7 @@ import torchvision.transforms as transforms
 # misc packages
 import os 
 import json 
+import scipy
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
@@ -75,7 +76,7 @@ def randomize_train_test(df, partition, generator):
     
     obs = df[(~df[partition].isna()) & (df[partition] != 'not_eligible')]
     
-    chosen = rand_gen.choice(obs.index, math.floor(len(obs)*.2), replace=False)
+    chosen = generator.choice(obs.index, math.floor(len(obs)*.2), replace=False)
     df.loc[chosen, partition] = 'test'
     notc = obs.index.difference(chosen)
     df.loc[notc, partition] = 'train'
@@ -96,9 +97,9 @@ def randomize_taxonomic_train_test(df, generator):
     all_train = []
     test = []
     for spec, dff in tqdm(df.groupby('name'), total=len(df.groupby('name'))):
-        testidxs = rand_gen.choice(dff.index, math.floor(len(dff)*.2), replace=False)
+        testidxs = generator.choice(dff.index, math.floor(len(dff)*.2), replace=False)
         remaining = dff.index.difference(testidxs).values
-        btrain = rand_gen.choice(remaining, max_obs, replace=False) if len(remaining) > max_obs else remaining
+        btrain = generator.choice(remaining, max_obs, replace=False) if len(remaining) > max_obs else remaining
         balanced_train += btrain.tolist()
         all_train += remaining.tolist()
         test += testidxs.tolist()
