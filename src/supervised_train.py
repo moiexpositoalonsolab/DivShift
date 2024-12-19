@@ -213,16 +213,13 @@ def train(args, save_dir, full_exp_id, model_weights, epoch):
         if args.train_partition_size == 'A+B':
             addl_df = ddf[(ddf['supervised'] == True) & (ddf[args.test_partition] == 'train')]
             train_df = pd.concat([train_df, addl_df])
-        if (args.train_partition == '2019-2021'):
-            train_df = ddf[(ddf['supervised'] == True) &
-               ((pd.to_datetime(ddf['date']).dt.year == 2019) | (pd.to_datetime(ddf['date']).dt.year == 2020) | (pd.to_datetime(ddf['date']).dt.year == 2021))]
         else:
             raise ValueError('Please select a valid train_partition')
 
         # associate class with index
-        print(f"train df is this size: {train_df.shape} with {len(train_df['name'].unique())} labels")
+        print(f"train df is size: {train_df.shape} with {len(train_df['name'].unique())} labels")
         label_dict = {spec: i for i, spec in enumerate(sorted(train_df[args.to_classify].unique().tolist()))}
-        print(f"label dict is {len(label_dict)} with {min(list(label_dict.values()))} min label name and {max(list(label_dict.values()))} max label name")
+        print(f"Have {len(label_dict)} species with {min(list(label_dict.values()))} min label name and {max(list(label_dict.values()))} max label name")
 
 
         train_image_dir = args.data_dir
@@ -237,16 +234,12 @@ def train(args, save_dir, full_exp_id, model_weights, epoch):
         # Get test data
         if (args.test_partition in ddf.columns):
             test_df = ddf[(ddf['supervised'] == True) & (ddf[args.test_partition] == 'test')]
-        elif (args.test_partition == '2022'):
-            test_df = ddf[(ddf['supervised'] == True) & (ddf['download_success'] == 'yes') & (pd.to_datetime(ddf['date']).dt.year == 2022)]
-        elif (args.test_partition == '2023'):
-            test_df = ddf[(ddf['supervised'] == True) & (ddf['download_success'] == 'yes') & (pd.to_datetime(ddf['date']).dt.year == 2023)]
         else:
             raise ValueError('Please select a valid test_partition')
 
         test_df = test_df.loc[test_df[args.to_classify].isin(label_dict)]
 
-        print(f"test df is this size: {test_df.shape} with {len(test_df['name'].unique())} labels")
+        print(f"test df is size: {test_df.shape} with {len(test_df['name'].unique())} labels")
 
         test_image_dir = args.data_dir
 
