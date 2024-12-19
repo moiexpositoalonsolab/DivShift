@@ -78,12 +78,13 @@ def inference(args):
         
         if (args.train_partition in ddf.columns):
             train_df = ddf[ddf[args.train_partition] == 'train']
+        else:
+            raise ValueError('Please select a valid train_partition')
         # TODO: test!
         if args.train_partition_size == 'A+B':
             addl_df = ddf[ddf[args.test_partition] == 'train']
             train_df = pd.concat([train_df, addl_df])
-        else:
-            raise ValueError('Please select a valid train_partition')
+
         # associate class with index
         print(f"train df is size: {train_df.shape} with {len(train_df['name'].unique())} labels")
         label_dict = {spec: i for i, spec in enumerate(sorted(train_df[args.to_classify].unique().tolist()))}
@@ -96,8 +97,6 @@ def inference(args):
                 test_df = ddf[(ddf[args.test_partition] == 'test') | (ddf[args.test_partition] == 'train')]
             else:
                 test_df = ddf[ddf[args.test_partition] == 'test']
-
-
         else:
             raise ValueError('Please select a valid test_partition')
 

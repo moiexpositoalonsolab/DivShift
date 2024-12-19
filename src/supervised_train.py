@@ -215,12 +215,13 @@ def train(args, save_dir, full_exp_id, model_weights, epoch):
 
         if (args.train_partition in ddf.columns):
             train_df = ddf[ddf[args.train_partition] == 'train']
+        else:
+            raise ValueError('Please select a valid train_partition')
         # TODO: test!
         if args.train_partition_size == 'A+B':
             addl_df = ddf[ddf[args.test_partition] == 'train']
             train_df = pd.concat([train_df, addl_df])
-        else:
-            raise ValueError('Please select a valid train_partition')
+
 
         # associate class with index
         print(f"train df is size: {train_df.shape} with {len(train_df['name'].unique())} labels")
