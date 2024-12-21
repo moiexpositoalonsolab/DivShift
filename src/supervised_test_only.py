@@ -84,8 +84,7 @@ def inference(args):
             train_df = ddf[ddf[args.train_partition] == 'train']
         else:
             raise ValueError('Please select a valid train_partition')
-        # TODO: test!
-        if args.train_partition_size == 'A+B':
+        if hyperparams.train_partition_size == 'A+B':
             addl_df = ddf[ddf[args.test_partition] == 'train']
             train_df = pd.concat([train_df, addl_df])
 
@@ -106,7 +105,7 @@ def inference(args):
 
 
         # get JSD between Pa train, Pb test, and Pa test
-        jsd_patr_pbte, jsd_patr_pate = supervised_dataset.calculate_jsd(ddf, args.train_partition, args.test_partition, args.train_partition_size, args.use_entire_split)
+        jsd_patr_pbte, jsd_patr_pate = supervised_dataset.calculate_jsd(ddf, args.train_partition, args.test_partition, hyperparams.train_partition_size, args.use_entire_split)
         
         test_df = test_df.loc[test_df[args.to_classify].isin(label_dict)]
 
@@ -130,17 +129,20 @@ def inference(args):
     modeldata = torch.load(modelweights, map_location=torch.device('cpu'))
     bestepoch = modeldata['epoch'] + 1
 
-    if (args.model == 'ResNet50'):
+    if hyperparams.model == 'ResNet50':
         model = models.resnet50()
-        model.fc = nn.Linear(model.fc.in_features, len(label_dict))
-        model.load_state_dict(modeldata["model_state_dict"], strict=True)
+    elif hyperparams.model == 'ViT-Base':
+        # TODO: test this works!
+        model = torchvision.models.vit_b_16()
+    elif hyperparams.model == 'ViT-Large':
+        model = torchvision.models.vit_l_16()
     else:
         model = models.resnet18()
-        print(model.conv1.weight[0]) # shows random weights
-        model.fc = nn.Linear(model.fc.in_features, len(label_dict))
-        model.load_state_dict(modeldata["model_state_dict"], strict=True)
-        print(model.conv1.weight[0]) # should show pretrained weights
-        print(f"loaded model from {modeldata['epoch']}")
+    
+    model.fc = nn.Linear(model.fc.in_features, len(label_dict))
+    model.load_state_dict(modeldata["model_state_dict"], strict=True)
+    
+    print(f"loaded model from {modeldata['epoch']}")
     lastmodel = f"{args.model_dir}/finetune_results/{args.exp_id}/{args.exp_id}_epoch{hyperparams.num_epochs - 1}.pth"
     if not os.path.exists(lastmodel):
         raise ValueError(f"WARNING: {args.exp_id} has not finished training! Best epoch is {bestepoch} and total number of expected epochs is {hyperparams.num_epochs }")
@@ -227,7 +229,6 @@ def inference(args):
     luctop1 = np.mean(list(luc_results1.values()))
     luctop5 = np.mean(list(luc_results5.values()))
 
-    # TODO: update extra tidbits to save
     results = {
             'best_epoch' : [bestepoch],
             'model' : [hyperparams.model],
@@ -290,7 +291,7 @@ if __name__ == "__main__":
     parser.add_argument("--data_dir", type=str, help="Location of directory where train/test/val split are saved to.", required=True) 
     parser.add_argument("--model_dir", type=str, help="Location of directory where model weights are saved to.", required=True) 
     parser.add_argument('--dataset', type=str, help='DivShift', default='DivShift')
-    parser.add_argument('--model', type=str, help='which model', choices=['ResNet18', 'ResNet50'], default='ResNet18')
+    # parser.add_argument('--model', type=str, help='which model', choices=['ResNet18', 'ResNet50', 'ViT-Base', 'ViT-Large'], default='ResNet18')
     parser.add_argument("--exp_id", type=str, help="Experiment name of trained model.", required=True)
     parser.add_argument("--test_batch_size", type=int, help="Examples per batch", default=1000)
     parser.add_argument('--processes', type=int, help='Number of workers for dataloader.', default=0)

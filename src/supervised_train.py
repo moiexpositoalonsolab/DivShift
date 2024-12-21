@@ -195,7 +195,7 @@ def train(args, save_dir, full_exp_id, model_weights, epoch):
         # re-assign obs in each partition to train/test
         if args.randomize_partitions is not None:
             rand_gen = np.random.default_rng(seed=args.randomize_partitions)
-
+            print(f"randomizing subpartitions using seed {args.randomize_partitions}")
             if args.train_partition in ['taxonomic_balanced', 'taxonomic_unbalanced']:
                 ddf = supervised_dataset.randomize_taxonomic_train_test(ddf, rand_gen)
             else:
@@ -209,7 +209,7 @@ def train(args, save_dir, full_exp_id, model_weights, epoch):
         args.jsd_patr_pbte = jsd_patr_pbte
         args.jsd_patr_pate = jsd_patr_pate
         
-        # save out JSD w/ hyperparameters TODO: test
+        # save out JSD w/ hyperparameters
         json_fname = f'{save_dir}{full_exp_id}_hyperparams.json'
         with open(json_fname, 'w') as f:
             json.dump(vars(args), f, indent=4)
@@ -221,7 +221,6 @@ def train(args, save_dir, full_exp_id, model_weights, epoch):
             train_df = ddf[ddf[args.train_partition] == 'train']
         else:
             raise ValueError('Please select a valid train_partition')
-        # TODO: test!
         if args.train_partition_size == 'A+B':
             addl_df = ddf[ddf[args.test_partition] == 'train']
             train_df = pd.concat([train_df, addl_df])
@@ -267,10 +266,17 @@ def train(args, save_dir, full_exp_id, model_weights, epoch):
 
     # model
     print('setting up model')
-    if (args.model == 'ResNet50'):
-        model = models.resnet50(pretrained=True)
+    if args.model == 'ResNet50':
+        model = models.resnet50(pretrained=torchvision.models.resnet.ResNet50_Weights.IMAGENET1K_V1)
+    elif args.model == 'ViT-Base':
+        # TODO: test this works!
+        model = torchvision.models.vit_b_16(weights=torchvision.models.ViT_B_16_Weights.IMAGENET1K_V1)
+    elif args.model == 'ViT-Large':
+        model = torchvision.models.vit_l_16(weights=torchvision.models.ViT_L_16_Weights.IMAGENET1K_V1)
     else:
-        model = models.resnet18(pretrained=True)
+        # default is ResNet18
+        model = models.resnet18(pretrained=torchvision.models.resnet.ResNet18_Weights.IMAGENET1K_V1)
+    # reset fc for our dataset size
     model.fc = nn.Linear(model.fc.in_features, len(label_dict))
     if args.train_type == 'feature_extraction':
         for param in model.parameters():
@@ -366,7 +372,7 @@ if __name__ == "__main__":
     parser.add_argument('--dataset', type=str, help='DivShift', default='DivShift')
     parser.add_argument('--checkpoint_freq', type=int, help='how often to checkpoint model weights (best model is saved)', default=5)
     parser.add_argument('--optimizer', type=str, help='which optimizer (Adam, AdamW, SGD, or RMSprop)', choices=['Adam', 'AdamW', 'SGD', 'RMSprop'], default='SGD')
-    parser.add_argument('--model', type=str, help='which model', choices=['ResNet18', 'ResNet50'], default='ResNet18')
+    parser.add_argument('--model', type=str, help='which model', choices=['ResNet18', 'ResNet50', 'ViT-Base', 'ViT-Large'], default='ResNet18')
     parser.add_argument("--exp_id", type=str, help="Experiment name for logging purposes.", required=True)
     parser.add_argument("--num_epochs", type=int, help='Number of epochs to train for.', default=10)
     parser.add_argument("--batch_size", type=int, help="Examples per batch", default=60)
