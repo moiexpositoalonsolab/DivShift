@@ -54,7 +54,11 @@ def inference(args):
     label_dict = {}
     if args.dataset == "DivShift":
         # Standard transform for ImageNet
-        transform = transforms.Compose([transforms.Resize(256),
+        # using antialias=None to be consistent w/ defaults for
+        # transforms.Resize(256) command  from torchvision < 0.17
+        # that models were trained with and to remove the annoying
+        # warning for users training w/ a newer version of torchvision
+        transform = transforms.Compose([transforms.Resize(256, antialias=None), 
                                         transforms.CenterCrop(224),
                                         transforms.Normalize(mean=[0.485,
                                                                    0.456,
