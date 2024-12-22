@@ -190,7 +190,7 @@ def train(args, save_dir, full_exp_id, model_weights, epoch):
                                                                   0.224,
                                                                   0.225]),])
         # Get training data
-        ddf = pd.read_csv(f'{args.data_dir}/splits_lauren.csv')
+        ddf = pd.read_csv(f'{args.data_dir}/splits_lauren.csv',low_memory=False)
         ddf = ddf[ddf['supervised'] == True]
         # re-assign obs in each partition to train/test
         if args.randomize_partitions is not None:
@@ -267,17 +267,24 @@ def train(args, save_dir, full_exp_id, model_weights, epoch):
     # model
     print('setting up model')
     if args.model == 'ResNet50':
-        model = models.resnet50(pretrained=torchvision.models.resnet.ResNet50_Weights.IMAGENET1K_V1)
+        model = models.resnet50(weights=torchvision.models.resnet.ResNet50_Weights.IMAGENET1K_V1)
+        # reset fc for our dataset size
+        model.fc = nn.Linear(model.fc.in_features, len(label_dict))
     elif args.model == 'ViT-Base':
         # TODO: test this works!
         model = torchvision.models.vit_b_16(weights=torchvision.models.ViT_B_16_Weights.IMAGENET1K_V1)
+        # reset fc for our dataset size
+        model.heads.head = torch.nn.Linear(model.heads.head.in_features, len(label_dict))
     elif args.model == 'ViT-Large':
         model = torchvision.models.vit_l_16(weights=torchvision.models.ViT_L_16_Weights.IMAGENET1K_V1)
+        # reset fc for our dataset size
+        model.heads.head = torch.nn.Linear(model.heads.head.in_features, len(label_dict))
     else:
         # default is ResNet18
-        model = models.resnet18(pretrained=torchvision.models.resnet.ResNet18_Weights.IMAGENET1K_V1)
-    # reset fc for our dataset size
-    model.fc = nn.Linear(model.fc.in_features, len(label_dict))
+        model = models.resnet18(weights=torchvision.models.resnet.ResNet18_Weights.IMAGENET1K_V1)
+        # reset fc for our dataset size
+        model.fc = nn.Linear(model.fc.in_features, len(label_dict))
+    
     if args.train_type == 'feature_extraction':
         for param in model.parameters():
             param.requires_grad = False

@@ -131,13 +131,17 @@ def inference(args):
 
     if hyperparams.model == 'ResNet50':
         model = models.resnet50()
+        model.fc = nn.Linear(model.fc.in_features, len(label_dict))
     elif hyperparams.model == 'ViT-Base':
         # TODO: test this works!
         model = torchvision.models.vit_b_16()
+        model.heads.head = torch.nn.Linear(model.heads.head.in_features, len(label_dict))
     elif hyperparams.model == 'ViT-Large':
         model = torchvision.models.vit_l_16()
+        model.heads.head = torch.nn.Linear(model.heads.head.in_features, len(label_dict))
     else:
         model = models.resnet18()
+        model.fc = nn.Linear(model.fc.in_features, len(label_dict))
     
     model.fc = nn.Linear(model.fc.in_features, len(label_dict))
     model.load_state_dict(modeldata["model_state_dict"], strict=True)
