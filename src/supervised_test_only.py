@@ -71,7 +71,6 @@ def inference(args):
         ddf = ddf[ddf['supervised'] == True]
 # re-assign obs in each partition to train/test
         if hyperparams.randomize_partitions is not None:
-            print('Re-randomizing train and test observations')
             rand_gen = np.random.default_rng(seed=hyperparams.randomize_partitions)
 
             if args.train_partition in ['taxonomic_balanced', 'taxonomic_unbalanced']:
