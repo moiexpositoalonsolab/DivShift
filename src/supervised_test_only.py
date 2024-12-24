@@ -71,10 +71,11 @@ def inference(args):
         ddf = ddf[ddf['supervised'] == True]
 # re-assign obs in each partition to train/test
         if hyperparams.randomize_partitions is not None:
+            print('Re-randomizing train and test observations')
             rand_gen = np.random.default_rng(seed=hyperparams.randomize_partitions)
 
             if args.train_partition in ['taxonomic_balanced', 'taxonomic_unbalanced']:
-                ddf = supervised_dataset.randomize_taxonomic_train_test(ddf, generator)
+                ddf = supervised_dataset.randomize_taxonomic_train_test(ddf, rand_gen)
             else:
                 ddf = supervised_dataset.randomize_train_test(ddf, args.train_partition, rand_gen)
                 ddf = supervised_dataset.randomize_train_test(ddf, args.test_partition, rand_gen)
@@ -240,6 +241,8 @@ def inference(args):
             'test_partition' : [args.test_partition],
             'use_all_test' : [args.use_entire_split],
             'train_partition' : [hyperparams.train_partition],
+            'train_partition_size' : [hyperparams.train_partition_size],
+            'randomize_partitions' : [hyperparams.randomize_partitions],
             'train_type' : [hyperparams.train_type],
             'learning_rate' : [hyperparams.learning_rate],
             'batch_size' : [hyperparams.batch_size],
@@ -274,7 +277,7 @@ def inference(args):
     res = pd.DataFrame({**results, **eco_results1, **eco_results5, **luc_results1, **luc_results5})
     # save accs to group csv
     if args.csv_id is not None:
-        total_csv = f"{args.data_dir}/inference/{args.dataset}_{args.train_partition}_{args.csv_id}_overall__{socket.gethostname()}.csv"
+        total_csv = f"{args.data_dir}/inference/{args.dataset}_{args.train_partition}_{args.csv_id}_overall_{socket.gethostname()}.csv"
     else:
         total_csv = f"{args.data_dir}/inference/{args.dataset}_{args.train_partition}_overall__{socket.gethostname()}.csv"
     print('saving overall results')
