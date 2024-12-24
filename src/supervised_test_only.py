@@ -76,10 +76,19 @@ def inference(args):
             if args.train_partition in ['taxonomic_balanced', 'taxonomic_unbalanced']:
                 ddf = supervised_dataset.randomize_taxonomic_train_test(ddf, rand_gen)
             else:
+                print(f"before: {len(ddf[ddf[args.train_partition] == 'train']['name'].unique())} train labels")
+                print(f"before: {len(ddf[ddf[args.test_partition] == 'test']['name'].unique())} test labels")
                 ddf = supervised_dataset.randomize_train_test(ddf, hyperparams.train_partition, rand_gen)
+                print(f"first: {len(ddf[ddf[args.train_partition] == 'train']['name'].unique())} train labels")
+                print(f"first: {len(ddf[ddf[args.test_partition] == 'test']['name'].unique())} test labels")
                 ddf = supervised_dataset.randomize_train_test(ddf, hyperparams.test_partition, rand_gen)
-                if hyperparams.test_partition != args.test_partition:
+                print(f"second: {len(ddf[ddf[args.train_partition] == 'train']['name'].unique())} train labels")
+                print(f"second: {len(ddf[ddf[args.test_partition] == 'test']['name'].unique())} test labels")
+                if (hyperparams.test_partition != args.test_partition) and (hyperparams.train_partition != args.test_partition):
+                    print(f"args test: {args.test_partition} hyperparams test {hyperparams.test_partition}")
                     ddf = supervised_dataset.randomize_train_test(ddf, args.test_partition, rand_gen)
+                    print(f"third: {len(ddf[ddf[args.train_partition] == 'train']['name'].unique())} train labels")
+                    print(f"third: {len(ddf[ddf[args.test_partition] == 'test']['name'].unique())} test labels")
                 
 
         
@@ -90,7 +99,6 @@ def inference(args):
         if hyperparams.train_partition_size == 'A+B':
             addl_df = ddf[ddf[args.test_partition] == 'train']
             train_df = pd.concat([train_df, addl_df])
-
         # associate class with index
         print(f"train df is size: {train_df.shape} with {len(train_df['name'].unique())} labels")
         label_dict = {spec: i for i, spec in enumerate(sorted(train_df[args.to_classify].unique().tolist()))}
