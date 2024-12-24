@@ -67,7 +67,7 @@ def inference(args):
                                                                   0.224,
                                                                   0.225]),])
         # Get training data
-        ddf = pd.read_csv(f'{args.data_dir}/splits_lauren.csv')
+        ddf = pd.read_csv(f'{args.data_dir}/splits_lauren.csv',low_memory=False)
         ddf = ddf[ddf['supervised'] == True]
 # re-assign obs in each partition to train/test
         if hyperparams.randomize_partitions is not None:
@@ -76,8 +76,11 @@ def inference(args):
             if args.train_partition in ['taxonomic_balanced', 'taxonomic_unbalanced']:
                 ddf = supervised_dataset.randomize_taxonomic_train_test(ddf, rand_gen)
             else:
-                ddf = supervised_dataset.randomize_train_test(ddf, args.train_partition, rand_gen)
-                ddf = supervised_dataset.randomize_train_test(ddf, args.test_partition, rand_gen)
+                ddf = supervised_dataset.randomize_train_test(ddf, hyperparams.train_partition, rand_gen)
+                ddf = supervised_dataset.randomize_train_test(ddf, hyperparams.test_partition, rand_gen)
+                if hyperparams.test_partition != args.test_partition:
+                    ddf = supervised_dataset.randomize_train_test(ddf, args.test_partition, rand_gen)
+                
 
         
         if (args.train_partition in ddf.columns):
