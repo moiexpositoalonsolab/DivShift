@@ -70,7 +70,7 @@ def inference(args):
         ddf = pd.read_csv(f'{args.data_dir}/splits_lauren.csv')
         ddf = ddf[ddf['supervised'] == True]
 # re-assign obs in each partition to train/test
-        if args.randomize_partitions is not None:
+        if hyperparams.randomize_partitions is not None:
             rand_gen = np.random.default_rng(seed=hyperparams.randomize_partitions)
 
             if args.train_partition in ['taxonomic_balanced', 'taxonomic_unbalanced']:
