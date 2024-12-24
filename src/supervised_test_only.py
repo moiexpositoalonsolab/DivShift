@@ -273,7 +273,10 @@ def inference(args):
            }
     res = pd.DataFrame({**results, **eco_results1, **eco_results5, **luc_results1, **luc_results5})
     # save accs to group csv
-    total_csv = f"{args.data_dir}/inference/{args.dataset}_{args.train_partition}_overall__{socket.gethostname()}.csv"
+    if args.csv_id is not None:
+        total_csv = f"{args.data_dir}/inference/{args.dataset}_{args.train_partition}_{args.csv_id}_overall__{socket.gethostname()}.csv"
+    else:
+        total_csv = f"{args.data_dir}/inference/{args.dataset}_{args.train_partition}_overall__{socket.gethostname()}.csv"
     print('saving overall results')
     if not os.path.exists(total_csv):
         res.to_csv(total_csv, index=False)
@@ -297,6 +300,7 @@ if __name__ == "__main__":
     parser.add_argument('--dataset', type=str, help='DivShift', default='DivShift')
     # parser.add_argument('--model', type=str, help='which model', choices=['ResNet18', 'ResNet50', 'ViT-Base', 'ViT-Large'], default='ResNet18')
     parser.add_argument("--exp_id", type=str, help="Experiment name of trained model.", required=True)
+    parser.add_argument("--csv_id", type=str, help="Additional name for csv if needed.", default=None)
     parser.add_argument("--test_batch_size", type=int, help="Examples per batch", default=1000)
     parser.add_argument('--processes', type=int, help='Number of workers for dataloader.', default=0)
     parser.add_argument('--train_partition', type=str, help="which split the saved weights were trained on", required=True)
