@@ -94,15 +94,15 @@ def inference(args):
 
         
         if (args.train_partition in ddf.columns):
-            print(f"train df has: {len(ddf[ddf[args.train_partition] == 'train']['name'].unique())} train labels")
             train_df = ddf[ddf[args.train_partition] == 'train']
-            print(f"train df is size: {train_df.shape} with {len(train_df['name'].unique())} labels")
         else:
             raise ValueError('Please select a valid train_partition')
         if hyperparams.train_partition_size == 'A+B':
             print("A+B case")
+            labels = train_df[args.to_classify].unique().tolist()
             addl_df = ddf[ddf[args.test_partition] == 'train']
             train_df = pd.concat([train_df, addl_df])
+            train_df = train_df.loc[train_df[args.to_classify].isin(labels)]
         # associate class with index
         print(f"train df is size: {train_df.shape} with {len(train_df['name'].unique())} labels")
         label_dict = {spec: i for i, spec in enumerate(sorted(train_df[args.to_classify].unique().tolist()))}
