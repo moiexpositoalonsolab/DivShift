@@ -97,10 +97,11 @@ def inference(args):
         else:
             raise ValueError('Please select a valid train_partition')
         if hyperparams.train_partition_size == 'A+B':
+            print("A+B case")
             addl_df = ddf[ddf[args.test_partition] == 'train']
             train_df = pd.concat([train_df, addl_df])
         # associate class with index
-        print(f"train partition: {args.test_partition} test partition: {args.test_partition}")
+        print(f"train partition: {args.train_partition} test partition: {args.test_partition}")
         print(f"train df is size: {train_df.shape} with {len(train_df['name'].unique())} labels")
         label_dict = {spec: i for i, spec in enumerate(sorted(train_df[args.to_classify].unique().tolist()))}
         print(f"Have {len(label_dict)} species with {min(list(label_dict.values()))} min label name and {max(list(label_dict.values()))} max label name")
