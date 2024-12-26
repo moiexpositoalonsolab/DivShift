@@ -70,6 +70,7 @@ def inference(args):
         ddf = pd.read_csv(f'{args.data_dir}/splits_lauren.csv',low_memory=False)
         ddf = ddf[ddf['supervised'] == True]
 # re-assign obs in each partition to train/test
+        print(f"train partition: {args.train_partition} test partition: {args.test_partition}")
         if hyperparams.randomize_partitions is not None:
             rand_gen = np.random.default_rng(seed=hyperparams.randomize_partitions)
 
@@ -93,7 +94,9 @@ def inference(args):
 
         
         if (args.train_partition in ddf.columns):
+            print(f"train df has: {len(ddf[ddf[args.train_partition] == 'train']['name'].unique())} train labels")
             train_df = ddf[ddf[args.train_partition] == 'train']
+            print(f"train df is size: {train_df.shape} with {len(train_df['name'].unique())} labels")
         else:
             raise ValueError('Please select a valid train_partition')
         if hyperparams.train_partition_size == 'A+B':
@@ -101,7 +104,6 @@ def inference(args):
             addl_df = ddf[ddf[args.test_partition] == 'train']
             train_df = pd.concat([train_df, addl_df])
         # associate class with index
-        print(f"train partition: {args.train_partition} test partition: {args.test_partition}")
         print(f"train df is size: {train_df.shape} with {len(train_df['name'].unique())} labels")
         label_dict = {spec: i for i, spec in enumerate(sorted(train_df[args.to_classify].unique().tolist()))}
         print(f"Have {len(label_dict)} species with {min(list(label_dict.values()))} min label name and {max(list(label_dict.values()))} max label name")
