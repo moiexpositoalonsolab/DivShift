@@ -26,19 +26,19 @@ from PIL import Image
 
 
 # calculate jensen-shannon distance
-def calculate_jsd(df, train_partition, test_partition, train_partition_size='A', use_entire_split=False):
+def calculate_jsd(df, train_partition, test_partition, to_classify, b_partition=None, use_entire_split=False):
 
-    if (train_partition == 'A+B') & use_entire_split:
+    if (b_partition is not None) & use_entire_split:
         raise ValueError("Warning! Trained on PAtrain and PBtrain but are testing on PBtest AND PBtrain!")
     # restrict to only observations used for training
-    df = df[(df['supervised'] == True)]
+    df = df[df.supervised]
     # P_a_train
-    if train_partition_size == 'A+B':
-        p_a_train = df[df[train_partition] == 'train']
-        p_b_train = df[df[test_partition] == 'train']
+    p_a_train = df[df[train_partition] == 'train']
+    # include B partition if necessary
+    if b_partition is not None:
+        p_b_train = df[df[b_partition] == 'train']
         p_a_train = pd.concat([p_a_train, p_b_train])
-    else:
-        p_a_train = df[df[train_partition] == 'train']
+        
     # P_b_test
     if use_entire_split: # for when certain splits are very small
         p_b_test = df[(df[test_partition] == 'test') | (df[test_partition] == 'train')]
@@ -46,17 +46,17 @@ def calculate_jsd(df, train_partition, test_partition, train_partition_size='A',
         p_b_test = df[df[test_partition] == 'test']
     # P_a_test
     p_a_test = df[df[train_partition] == 'test']
-    # inline with model training,
-    # only consider labels present in
-    # the training set
-    to_keep = p_a_train.name.unique().tolist()
+    
+    # inline with model training, only consider labels present in the training set
+    to_keep = sorted(p_a_train[to_classify].unique().tolist())
 
     # get the count of each label in each partition subset
-    p_a_train_dict = p_a_train.name.value_counts()
-    p_b_test_dict = p_b_test.name.value_counts()
-    p_a_test_dict = p_a_test.name.value_counts()
+    p_a_train_dict = p_a_train[to_classify].value_counts()
+    p_b_test_dict = p_b_test[to_classify].value_counts()
+    p_a_test_dict = p_a_test[to_classify].value_counts()
     # filter label counts per partition subset to only 
     # consider those present in the training set
+    # and ensure in same order so distance calculation lines up
     p_a_train_dist = [p_a_train_dict[spec] for spec in to_keep]
     # if a label isn't present in the test set, impute 0 observations for that species
     p_b_test_dist =  [p_b_test_dict[spec]  if spec in p_b_test_dict else 0 for spec in to_keep]
@@ -72,19 +72,14 @@ def calculate_jsd(df, train_partition, test_partition, train_partition_size='A',
 
 def randomize_train_test(df, partition, generator):
     # only pick from eligible observations
-    notrain = df[partition].value_counts()['train']
-    notest = df[partition].value_counts()['test']
-    
     obs = df[(~df[partition].isna()) & (df[partition] != 'not_eligible')]
     
     chosen = generator.choice(obs.index, math.floor(len(obs)*.2), replace=False)
     df.loc[chosen, partition] = 'test'
     notc = obs.index.difference(chosen)
     df.loc[notc, partition] = 'train'
-    aftrain = df[partition].value_counts()['train']
-    aftest = df[partition].value_counts()['test']
-    # assert notrain == aftrain, f'new number of train observations doesnt match! {notrain} vs {aftrain}' 
-    # assert notest == aftest, f'new number of test observations doesnt match! {notest} vs {aftest}' 
+    
+    
     return df
 
 
@@ -108,12 +103,12 @@ def randomize_taxonomic_train_test(df, generator):
     df['taxonomic_balanced'] = 'not_eligible'
     df['taxonomic_unbalanced'] = 'not_eligible'
 
-    print(len(balanced_train), balanced_train[0])
     df.loc[balanced_train, 'taxonomic_balanced'] = 'train'
     df.loc[test, 'taxonomic_balanced'] = 'test'
     df.loc[all_train, 'taxonomic_unbalanced'] = 'train'
     df.loc[test, 'taxonomic_unbalanced'] = 'test'
     return df
+
 
 # class providing tensor of image and its label for the DivShift dataset
 class LabelsDataset(Dataset):
@@ -126,7 +121,7 @@ class LabelsDataset(Dataset):
         self.to_classify = to_classify
 
         # load label map 
-        meta_path = f"{img_dir}/splits_lauren_far_car_rar.json"
+        meta_path = f"{img_dir}/divshift_nawc_far_car_rar.json"
         with open(meta_path, 'r') as file:
             metadata = json.load(file)
         # set up groupings for partition accuracy rankings
