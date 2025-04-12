@@ -7,7 +7,16 @@ https://doi.org/10.1609/aaai.v39i27.35060
 
 The code in this repository implements the data preparation, model training, and evaluation protocols as described in the [DivShift paper](https://ojs.aaai.org/index.php/AAAI/article/view/35060). Using this repository, you can train deep learning models across partitions of five types of bias (spatial, temporal, taxonomic, observer, and sociopolitical) on the [DivShift North American West Coast](https://huggingface.co/datasets/elenagsierra/DivShift-NAWC) (DivShift-NAWC) dataset and test these biases' impact on model performance.
 
-## Requirements
+## Data Preparation
+
+### DivShift-NAWC Dataset
+
+Download the DivShift-NAWC dataset from Hugging Face:  
+[https://huggingface.co/datasets/elenagsierra/DivShift-NAWC](https://huggingface.co/datasets/elenagsierra/DivShift-NAWC) .
+
+## Run Code
+
+### Requirements
 
 - **Python:** 3.7 or later  
 - **Dependencies:**  
@@ -41,7 +50,6 @@ Model testing across partitions is as easily straightforward
 ```
 python3 src/supervised_test.py --device 0 --data_dir [your_data_directory] --exp_id engaged_test --processes 6 --train_partition spatial_engaged --test_partition spatial_engaged spatial_casual inat2021mini --model_dir [your_model_directory]
 ```
-
 ## Citation
 
 ```
