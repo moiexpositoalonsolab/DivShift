@@ -158,7 +158,6 @@ def inference(args):
         model = models.resnet18()
         model.fc = nn.Linear(model.fc.in_features, len(label_dict))
     
-    model.fc = nn.Linear(model.fc.in_features, len(label_dict))
     model.load_state_dict(modeldata["model_state_dict"], strict=True)
     
     print(f"loaded model from {modeldata['epoch']}")

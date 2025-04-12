@@ -239,7 +239,7 @@ def train(args, save_dir, full_exp_id, model_weights, epoch):
                                                    transform=transform,
                                                    target_transform=None)
         train_loader = DataLoader(train_dset, args.batch_size,
-                                  shuffle=True, num_workers=args.processes)
+                                  shuffle=True, num_workers=args.processes, drop_last=True)
         print('setting up test dataset')
         # Get test data
         if (args.test_partition in ddf.columns):
@@ -403,17 +403,21 @@ if __name__ == "__main__":
         full_exp_id = args.exp_id
 
         save_dir = f'{args.save_dir}finetune_results/{args.exp_id}/'
-        finished = glob.glob(f"{save_dir}{args.exp_id}_epoch*.pth")
-        maxepoch = max([int(f.split('epoch')[-1].split('.pth')[0]) for f in finished])
         bestmodel = f"{args.save_dir}/finetune_results/{args.exp_id}/{args.exp_id}_best_model.pth" 
         bestepoch =  torch.load(bestmodel, map_location=torch.device('cpu'))['epoch']
-        if bestepoch > maxepoch:
+        finished = glob.glob(f"{save_dir}{args.exp_id}_epoch*.pth")
+        if len(finished) > 0:
+            maxepoch = max([int(f.split('epoch')[-1].split('.pth')[0]) for f in finished])
+            if bestepoch > maxepoch:
+                epoch = bestepoch
+                restart_epoch = 'best_model'
+            else:
+                epoch = maxepoch
+                restart_epoch = f"epoch{epoch}"
+           
+        else:
             epoch = bestepoch
             restart_epoch = 'best_model'
-        else:
-            epoch = maxepoch
-            restart_epoch = f"epoch{epoch}"
-            
         
         print(f"restarting {args.exp_id} from epoch {epoch}")
         model_weights = f"{save_dir}{args.exp_id}_{restart_epoch}.pth"
