@@ -2,39 +2,38 @@
 File: supervised_train.py
 Authors: Elena Sierra & Lauren Gillespie
 ------------------
-Benchmark DivShift using supervised ResNets
+Training code for: DivShift: Exploring Domain-Specific Distribution Shift in Volunteer-Collected Biodiversity Datasets
 """
-
+# DivShift files
 import supervised_dataset
-from supervised_test import inference
 import supervised_utils as utils
+from supervised_test import inference
 
 # Torch packages / functions
 import torch
-import torch.nn as nn
 import torchvision
+import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
-from torch.utils.data import DataLoader, RandomSampler
-from torch.utils.tensorboard import SummaryWriter
 import torchvision.models as models
 import torchvision.transforms as transforms
+from torch.utils.tensorboard import SummaryWriter
+from torch.utils.data import DataLoader, RandomSampler
 
 # Miscellaneous packages
 import os
+import pdb
 import time
 import json
 import glob
 import socket
 import random
 import argparse
-from tqdm import tqdm, trange
-from datetime import datetime
 import numpy as np
 import pandas as pd
-import dask.dataframe as dd
+from tqdm import tqdm, trange
+from datetime import datetime
 from types import SimpleNamespace
-import pdb
 
 
 # ----------------- Utilities ----------------- #
@@ -214,7 +213,7 @@ def train(args, save_dir, model_weights, epoch):
 
                     
         # get JSD between Pa train, Pb test, and Pa test
-        jsd_patr_pbte, jsd_patr_pate = supervised_dataset.calculate_jsd(ddf, args.train_partition, args.test_partition, args.to_classify, args.b_partition)
+        jsd_patr_pbte, jsd_patr_pate = supervised_dataset.calculate_jsd(ddf, args.train_partition, args.test_partitions[0], args.to_classify, args.b_partition)
         
         args.jsd_patr_pbte = jsd_patr_pbte
         args.jsd_patr_pate = jsd_patr_pate
@@ -407,7 +406,7 @@ if __name__ == "__main__":
     # restart manually by specifying full exp_id
     if args.restart == 'manual':
 
-        save_dir = f'{args.model_dir}divshift_models/{args.exp_id}/'
+        save_dir = f'{args.model_dir}/divshift_models/{args.exp_id}/'
         finished = glob.glob(f"{save_dir}{args.exp_id}_epoch*.pth")
         maxepoch = max([int(f.split('epoch')[-1].split('.pth')[0]) for f in finished])
         bestmodel = f"{args.model_dir}/divshift_models/{args.exp_id}/{args.exp_id}_best_model.pth" 
@@ -434,7 +433,7 @@ if __name__ == "__main__":
         else:
             full_exp_id = f"{args.train_partition}_{args.b_partition}_train_{args.exp_id}_*"
             
-        save_dir = f'{args.model_dir}divshift_models/{full_exp_id}/'
+        save_dir = f'{args.model_dir}/divshift_models/{full_exp_id}/'
         # pattern match any possible model trained on same setup
         possible_exps = glob.glob(f"{save_dir}")
         # get the most recent of the bunch
@@ -463,6 +462,7 @@ if __name__ == "__main__":
         
     else:
         # create dir for saving
+        print('TEST HERE')
         date = datetime.now().strftime('%Y-%m-%d')
         if args.b_partition is None:
             full_exp_id = f"{args.train_partition}_train_{args.exp_id}_{date}"
@@ -472,7 +472,8 @@ if __name__ == "__main__":
         args.exp_id = full_exp_id
         epoch = 0
         model_weights = None
-        save_dir = f'{args.model_dir}divshift_models/{full_exp_id}/'
+        save_dir = f'{args.model_dir}/divshift_models/{full_exp_id}/'
+        print(save_dir)
         if not os.path.exists(save_dir):
             print(f"making dir {save_dir}")
             os.makedirs(save_dir)

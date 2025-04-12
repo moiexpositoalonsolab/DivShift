@@ -1,8 +1,8 @@
 """
-File: supervised_train.py
+File: supervised_test.py
 Authors: Elena Sierra & Lauren Gillespie
 ------------------
-Benchmark different domain shifts using supervised ResNets
+Testing code for: DivShift: Exploring Domain-Specific Distribution Shift in Volunteer-Collected Biodiversity Datasets
 """
 # DivShift functions
 import supervised_dataset
@@ -31,7 +31,6 @@ import json
 import socket
 import random
 import argparse
-import dask.dataframe as dd
 from tqdm import tqdm, trange
 from types import SimpleNamespace
 
@@ -200,7 +199,8 @@ def inference(args, test_partition, read_hyperparams=False, use_entire_split=Fal
                 'epoch': bestepoch,
                 'true_labels' : true_1,
                 'pred_labels' : tk,
-                'label_dict' : label_dict
+                'label_dict' : label_dict,
+                'index' : test_df.index
                 }, f"{save_path}.pth")
 
 
@@ -348,4 +348,4 @@ if __name__ == "__main__":
     parser.add_argument('--testing', action='store_true', help='Only run the first 50 batches')
     
     args = parser.parse_args()
-    inference(args, args.test_partition, read_hyperparams=True, args.use_entire_split, args.csv_id)
+    inference(args, args.test_partition, True, args.use_entire_split, args.csv_id)
