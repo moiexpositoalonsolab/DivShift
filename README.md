@@ -5,7 +5,16 @@ https://doi.org/10.1609/aaai.v39i27.35060
 
 The code in this repository implements the data preparation, model training, and evaluation protocols as described in the paper.
 
-## Requirements
+## Data Preparation
+
+### DivShift-NAWC Dataset
+
+Download the DivShift-NAWC dataset from Hugging Face:  
+[https://huggingface.co/datasets/elenagsierra/DivShift-NAWC](https://huggingface.co/datasets/elenagsierra/DivShift-NAWC) .
+
+## Code Requirements
+
+### Requirements
 
 - **Python:** 3.7 or later  
 - **Dependencies:**  
@@ -17,13 +26,6 @@ The code in this repository implements the data preparation, model training, and
   - requests
 
 > We recommend using a virtual environment to manage dependencies
-
-## Data Preparation
-
-### DivShift-NAWC Dataset
-
-Download the DivShift-NAWC dataset from Hugging Face:  
-[https://huggingface.co/datasets/elenagsierra/DivShift-NAWC](https://huggingface.co/datasets/elenagsierra/DivShift-NAWC) .
 
 ## Citation
 
