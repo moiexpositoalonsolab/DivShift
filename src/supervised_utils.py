@@ -2,7 +2,7 @@
 File: supervised_utils.py
 Author: Elena Sierra and Lauren Gillespie
 ------------------
-implementation of utility functions for supervised model.
+Utility functions for: DivShift: Exploring Domain-Specific Distribution Shift in Volunteer-Collected Biodiversity Datasets
 """
 import os
 import glob
@@ -14,7 +14,6 @@ import enum
 from tqdm import tqdm
 from types import SimpleNamespace
 import matplotlib.pyplot as plt
-from tensorboard.backend.event_processing import event_accumulator
 import pandas as pd
 import geopandas as gpd
 

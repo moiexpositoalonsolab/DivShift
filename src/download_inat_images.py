@@ -1,6 +1,9 @@
-# crisp packages
-# TODO: convert to package
-
+"""
+File: download_inat_images.py
+Authors: Elena Sierra & Lauren Gillespie
+------------------
+Dataset download for: DivShift: Exploring Domain-Specific Distribution Shift in Volunteer-Collected Biodiversity Datasets
+"""
 # misc packages
 import os
 import random

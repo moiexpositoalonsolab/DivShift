@@ -2,7 +2,7 @@
 File: supervised_dataset.py
 Authors: Elena Sierra & Lauren Gillespie
 ------------------
-Defines the PyTorch dataset classes
+Dataset classes for: DivShift: Exploring Domain-Specific Distribution Shift in Volunteer-Collected Biodiversity Datasets
 """
 
 # torch packages
