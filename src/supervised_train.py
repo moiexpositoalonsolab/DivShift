@@ -2,38 +2,38 @@
 File: supervised_train.py
 Authors: Elena Sierra & Lauren Gillespie
 ------------------
-Benchmark DivShift using supervised ResNets
+Training code for: DivShift: Exploring Domain-Specific Distribution Shift in Volunteer-Collected Biodiversity Datasets
 """
-
+# DivShift files
 import supervised_dataset
 import supervised_utils as utils
+from supervised_test import inference
 
 # Torch packages / functions
 import torch
-import torch.nn as nn
 import torchvision
+import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
-from torch.utils.data import DataLoader, RandomSampler
-from torch.utils.tensorboard import SummaryWriter
 import torchvision.models as models
 import torchvision.transforms as transforms
+from torch.utils.tensorboard import SummaryWriter
+from torch.utils.data import DataLoader, RandomSampler
 
 # Miscellaneous packages
 import os
+import pdb
 import time
 import json
 import glob
 import socket
 import random
 import argparse
-from tqdm import tqdm, trange
-from datetime import datetime
 import numpy as np
 import pandas as pd
-import dask.dataframe as dd
+from tqdm import tqdm, trange
+from datetime import datetime
 from types import SimpleNamespace
-import pdb
 
 
 # ----------------- Utilities ----------------- #
@@ -42,7 +42,8 @@ import pdb
 def save_weights(model, optimizer, epoch, freq, top1, bestacc, save_dir, steps, train_log, test_log, lr_scheduler=None):
     exp_id = save_dir.split('/')[-2]
     model_path= f"{save_dir}{exp_id}_epoch{epoch}.pth"
-    if (epoch+1) % freq == 0:
+    # only save at X frequency
+    if epoch % freq == 0:
         if lr_scheduler is None:
             torch.save({
                         'epoch': epoch,
@@ -170,11 +171,10 @@ def test_one_epoch(model, device, test_loader, epoch, logger, count, SummaryWrit
     return logger
 
 
-def train(args, save_dir, full_exp_id, model_weights, epoch):
+def train(args, save_dir, model_weights, epoch):
 
     # dataset
     print('setting up dataset')
-    label_dict = {}
     if args.dataset == "DivShift":
         # Standard transform for ImageNet
         # using antialias=None to be consistent w/ defaults for
@@ -190,66 +190,70 @@ def train(args, save_dir, full_exp_id, model_weights, epoch):
                                                                   0.224,
                                                                   0.225]),])
         # Get training data
-        ddf = pd.read_csv(f'{args.data_dir}/splits_lauren.csv',low_memory=False)
-        ddf = ddf[ddf['supervised'] == True]
-        # re-assign obs in each partition to train/test
-        if args.randomize_partitions is not None:
-            rand_gen = np.random.default_rng(seed=args.randomize_partitions)
-            print(f"randomizing subpartitions using seed {args.randomize_partitions}")
+        ddf = pd.read_csv(f'{args.data_dir}/divshift_nawc.csv',low_memory=False)
+        # only using research-grade obs ID'd down to the species+ level
+        ddf = ddf[ddf.supervised]
+        # re-assign obs in each partition to train/test if randomizing
+        if args.randomize_partition is not None:
+            # set seed for train/test split reproducibility
+            rand_gen = np.random.default_rng(seed=args.randomize_partition)
+            print(f"randomizing subpartitions using seed {args.randomize_partition}")
+            # taxonomic bias is an edge case
             if args.train_partition in ['taxonomic_balanced', 'taxonomic_unbalanced']:
                 ddf = supervised_dataset.randomize_taxonomic_train_test(ddf, rand_gen)
+            # otherwise, shuffle bias partitions
             else:
+                # randomize A partition
                 ddf = supervised_dataset.randomize_train_test(ddf, args.train_partition, rand_gen)
-                ddf = supervised_dataset.randomize_train_test(ddf, args.test_partition, rand_gen)
+                # if using it, also randomize B partition
+                if args.b_partition is not None:
+                    ddf = supervised_dataset.randomize_train_test(ddf, args.b_partition, rand_gen)
 
 
+
+                    
         # get JSD between Pa train, Pb test, and Pa test
-        jsd_patr_pbte, jsd_patr_pate = supervised_dataset.calculate_jsd(ddf, args.train_partition, args.test_partition, args.train_partition_size)
+        jsd_patr_pbte, jsd_patr_pate = supervised_dataset.calculate_jsd(ddf, args.train_partition, args.test_partitions[0], args.to_classify, args.b_partition)
         
         args.jsd_patr_pbte = jsd_patr_pbte
         args.jsd_patr_pate = jsd_patr_pate
         
         # save out JSD w/ hyperparameters
-        json_fname = f'{save_dir}{full_exp_id}_hyperparams.json'
+        json_fname = f'{save_dir}{args.exp_id}_hyperparams.json'
         with open(json_fname, 'w') as f:
             json.dump(vars(args), f, indent=4)
 
-
-            
-
-        if (args.train_partition in ddf.columns):
-            train_df = ddf[ddf[args.train_partition] == 'train']
-        else:
-            raise ValueError('Please select a valid train_partition')
-        if args.train_partition_size == 'A+B':
-            addl_df = ddf[ddf[args.test_partition] == 'train']
+        # set up train dataset + dataloader
+        train_df = ddf[ddf[args.train_partition] == 'train']
+        # include B partition if relevant
+        if args.b_partition is not None:
+            addl_df = ddf[ddf[args.b_partition] == 'train']
             train_df = pd.concat([train_df, addl_df])
 
 
-        # associate class with index
-        print(f"train df is size: {train_df.shape} with {len(train_df['name'].unique())} labels")
+        # associate classes with index
         label_dict = {spec: i for i, spec in enumerate(sorted(train_df[args.to_classify].unique().tolist()))}
-        print(f"Have {len(label_dict)} species with {min(list(label_dict.values()))} min label name and {max(list(label_dict.values()))} max label name")
+        print(f"train df is size: {train_df.shape} with {len(label_dict)} labels")
 
 
+        # set up train dataloader
         train_image_dir = args.data_dir
 
         train_dset = supervised_dataset.LabelsDataset(train_df, train_image_dir,
                                                    label_dict, args.to_classify,
                                                    transform=transform,
                                                    target_transform=None)
+        # important to drop the last batch if smaller than batch_size during forward pass
         train_loader = DataLoader(train_dset, args.batch_size,
                                   shuffle=True, num_workers=args.processes, drop_last=True)
         print('setting up test dataset')
-        # Get test data
-        if (args.test_partition in ddf.columns):
-            test_df = ddf[ddf[args.test_partition] == 'test']
-        else:
-            raise ValueError('Please select a valid test_partition')
-
+        # for training, the test dataset is dataset used to train on
+        # so early stopping is done on in-distribution data
+        test_df = ddf[ddf[args.train_partition] == 'test']
+        # make sure to only keep observations for species seen during training
         test_df = test_df.loc[test_df[args.to_classify].isin(label_dict)]
 
-        print(f"test df is size: {test_df.shape} with {len(test_df['name'].unique())} labels")
+        print(f"test df is size: {test_df.shape} with {len(test_df[args.to_classify].unique())} labels")
 
         test_image_dir = args.data_dir
 
@@ -257,30 +261,35 @@ def train(args, save_dir, full_exp_id, model_weights, epoch):
                                                   label_dict, args.to_classify,
                                                   transform=transform,
                                                   target_transform=None)
+        
+        # don't drop the last batch when testing so results reproducible
         test_loader = DataLoader(test_dset, args.test_batch_size,
                                  shuffle=True, num_workers=args.processes)
 
-    # device
+    # set up pytorch so it can see your GPU
     device = torch.device(f"cuda:{args.device}" if args.device >=0 else "cpu")
     print(f"Experiment running on device: {device}")
 
-    # model
+    # set up model for training
     print('setting up model')
     if args.model == 'ResNet50':
+        # using imagenet pre-training
         model = models.resnet50(weights=torchvision.models.resnet.ResNet50_Weights.IMAGENET1K_V1)
         # reset fc for our dataset size
         model.fc = nn.Linear(model.fc.in_features, len(label_dict))
     elif args.model == 'ViT-Base':
-        # TODO: test this works!
+        # using imagenet pre-training
         model = torchvision.models.vit_b_16(weights=torchvision.models.ViT_B_16_Weights.IMAGENET1K_V1)
         # reset fc for our dataset size
         model.heads.head = torch.nn.Linear(model.heads.head.in_features, len(label_dict))
     elif args.model == 'ViT-Large':
+        # using imagenet pre-training
         model = torchvision.models.vit_l_16(weights=torchvision.models.ViT_L_16_Weights.IMAGENET1K_V1)
         # reset fc for our dataset size
         model.heads.head = torch.nn.Linear(model.heads.head.in_features, len(label_dict))
     else:
         # default is ResNet18
+        # using imagenet pre-training
         model = models.resnet18(weights=torchvision.models.resnet.ResNet18_Weights.IMAGENET1K_V1)
         # reset fc for our dataset size
         model.fc = nn.Linear(model.fc.in_features, len(label_dict))
@@ -314,7 +323,7 @@ def train(args, save_dir, full_exp_id, model_weights, epoch):
     print('starting training')
     # for logging purposes
     log_dir = f"{save_dir}logger"
-    writer = None if args.testing else SummaryWriter(log_dir=log_dir, comment=f"{full_exp_id}")
+    writer = None if args.testing else SummaryWriter(log_dir=log_dir, comment=f"{args.exp_id}")
     train_log, test_log = {}, {}
     test_log['loss'] = {}
     test_log['1accuracy'] = {}
@@ -332,7 +341,6 @@ def train(args, save_dir, full_exp_id, model_weights, epoch):
         writer.add_scalar('Top-5 Test/Accuracy', test_log['5accuracy'][epoch], epoch)
         countTrainBatch += len(train_loader)
         countTestBatch += len(test_loader)
-
         save_weights(model, optimizer, epoch, args.checkpoint_freq, test_log['1spec_acc'][epoch], best_acc, save_dir, countTrainBatch, train_log, test_log)
         if test_log['1spec_acc'][epoch] > best_acc:
             best_acc = test_log['1spec_acc'][epoch]
@@ -342,9 +350,7 @@ def train(args, save_dir, full_exp_id, model_weights, epoch):
 
 
 if __name__ == "__main__":
-    partition_choices = ['2019-2021',
-                     '2022',
-                     '2023',
+    partition_choices = [
                     'not_city_nature',
                     'city_nature',
                     'alaska_socioeco', # 1
@@ -358,52 +364,51 @@ if __name__ == "__main__":
                     'sonora_socioeco', # 1
                     'washington_socioeco', # 1
                     'yukon_socioeco', # 1
-                    'quality_obs',
-                    'casual_obs',
-                    'footprint_wilderness',
-                    'footprint_modified',
+                    'obs_engaged',
+                    'obs_casual',
+                    'spatial_wilderness',
+                    'spatial_modified',
+                    'taxonomic_balanced',
+                    'taxonomic_unbalanced',
                     'inat2021',
                     'inat2021mini',
                     'imagenet',
                     'spatial_split',
-                    'taxonomic_balanced',
-                    'taxonomic_unbalanced',
                     'random_split']
 
     parser = argparse.ArgumentParser(description="Specify cli arguments.", allow_abbrev=True)
-
-    parser.add_argument("--restart", help="Whether to accumulate gradients across batches.", action='store_true')
+    parser.add_argument("--restart", help="Use to restart model training automatically (auto) or manually (manual) by setting the exp_id to be the model of choice to finish training.", default=None, choices=['manual', 'auto'])
     parser.add_argument('--device', type=int, help='what device number to use (-1 for cpu)', default=-1)
     parser.add_argument("--data_dir", type=str, help="Location of directory where train/test/val split are saved to.", required=True)
-    parser.add_argument("--save_dir", type=str, help="Location of directory where models saved to.", default='./')
+    parser.add_argument("--model_dir", type=str, help="Location of directory where models saved to.", default='./')
     parser.add_argument('--dataset', type=str, help='DivShift', default='DivShift')
     parser.add_argument('--checkpoint_freq', type=int, help='how often to checkpoint model weights (best model is saved)', default=5)
     parser.add_argument('--optimizer', type=str, help='which optimizer (Adam, AdamW, SGD, or RMSprop)', choices=['Adam', 'AdamW', 'SGD', 'RMSprop'], default='SGD')
     parser.add_argument('--model', type=str, help='which model', choices=['ResNet18', 'ResNet50', 'ViT-Base', 'ViT-Large'], default='ResNet18')
     parser.add_argument("--exp_id", type=str, help="Experiment name for logging purposes.", required=True)
     parser.add_argument("--num_epochs", type=int, help='Number of epochs to train for.', default=10)
-    parser.add_argument("--batch_size", type=int, help="Examples per batch", default=60)
-    parser.add_argument("--test_batch_size", type=int, help="Examples per batch", default=1000)
-    parser.add_argument("--learning_rate", type=float, help="Learning rate for optimizer.", default=0.001)
+    parser.add_argument("--batch_size", type=int, help="Examples per batch", default=64)
+    parser.add_argument("--test_batch_size", type=int, help="Examples per batch", default=256)
+    parser.add_argument("--learning_rate", type=float, help="Learning rate for optimizer.", default=0.064)
     parser.add_argument('--processes', type=int, help='Number of workers for dataloader.', default=0)
-    parser.add_argument('--randomize_partitions', type=int, help="whether to use the default DivShift random partition splits (val: -1) or randomly re-assign the partitions into 80/20 train test", default=None)
-    parser.add_argument('--train_type', type=str, help="all-layers or one-layer", choices=['feature_extraction', 'full_finetune'], required=True)
+    parser.add_argument('--randomize_partition', type=int, help="whether to use the default DivShift random partition splits (val: -1) or randomly re-assign the partitions into 80/20 train test", default=None)
+    parser.add_argument('--train_type', type=str, help="Train all-layers or just final linear layer", choices=['feature_extraction', 'full_finetune'], default='full_finetune')
     parser.add_argument('--train_partition', type=str, help="which partition to train on", required=True, choices=partition_choices)
-    parser.add_argument('--test_partition', type=str, help="which partition to test on", required=True, choices=partition_choices)
-    parser.add_argument('--train_partition_size', type=str, help='Whether to train on Atrain or Atrain+Btrain', default='A', choices=['A', 'A+B'])
+    parser.add_argument('--b_partition', type=str, help='What additional B partition to train on when using Atrain+Btrain', default=None, choices=partition_choices)
+    parser.add_argument('--test_partitions', nargs='+', help="which partitions to test on")
+    parser.add_argument('--save_individual', action='store_true', help='If testing the partitions, whether to save individual predictions and labels')
     parser.add_argument('--to_classify', type=str, help="which column to classify", default='name')
     parser.add_argument('--testing', action='store_true', help='dont log the run to tensorboard')
     parser.add_argument('--display_batch_loss', action='store_true', help='Display loss at each batch in the training bar')
 
     args = parser.parse_args()
+    # restart manually by specifying full exp_id
+    if args.restart == 'manual':
 
-
-    if args.restart:
-
-        full_exp_id = args.exp_id
-
-        save_dir = f'{args.save_dir}finetune_results/{args.exp_id}/'
-        bestmodel = f"{args.save_dir}/finetune_results/{args.exp_id}/{args.exp_id}_best_model.pth" 
+        save_dir = f'{args.model_dir}/divshift_models/{args.exp_id}/'
+        finished = glob.glob(f"{save_dir}{args.exp_id}_epoch*.pth")
+        maxepoch = max([int(f.split('epoch')[-1].split('.pth')[0]) for f in finished])
+        bestmodel = f"{args.model_dir}/divshift_models/{args.exp_id}/{args.exp_id}_best_model.pth" 
         bestepoch =  torch.load(bestmodel, map_location=torch.device('cpu'))['epoch']
         finished = glob.glob(f"{save_dir}{args.exp_id}_epoch*.pth")
         if len(finished) > 0:
@@ -418,7 +423,6 @@ if __name__ == "__main__":
         else:
             epoch = bestepoch
             restart_epoch = 'best_model'
-        
         print(f"restarting {args.exp_id} from epoch {epoch}")
         model_weights = f"{save_dir}{args.exp_id}_{restart_epoch}.pth"
         hyperparams = f"{save_dir}{args.exp_id}_hyperparams.json"
@@ -426,14 +430,56 @@ if __name__ == "__main__":
         with open(hyperparams, 'r') as f:
             args_dict = json.load(f)
             args = SimpleNamespace(**args_dict)
+    # restart automatically by starting training from most recent version
+    # of this model saved to disk
+    elif args.restart == 'auto':
+        # get exp_id setup
+        if args.b_partition is None:
+            full_exp_id = f"{args.train_partition}_train_{args.exp_id}_*"
+        else:
+            full_exp_id = f"{args.train_partition}_{args.b_partition}_train_{args.exp_id}_*"
+            
+        save_dir = f'{args.model_dir}/divshift_models/{full_exp_id}/'
+        # pattern match any possible model trained on same setup
+        possible_exps = glob.glob(f"{save_dir}")
+        # get the most recent of the bunch
+        exp_dir = max(possible_exps, key=os.path.getmtime)
+        # get full exp_id from path
+        full_exp_id = exp_dir.split('/')[-2]
+        # grab what models have been trained so far
+        finished = glob.glob(f"{save_dir}{full_exp_id}_epoch*.pth")
+        maxepoch = max([int(f.split('epoch')[-1].split('.pth')[0]) for f in finished])
+        # get what epoch the best model was at so far (and use if farther along)
+        bestmodel = f"{args.model_dir}/divshift_models/{full_exp_id}/{full_exp_id}_best_model.pth" 
+        bestepoch =  torch.load(bestmodel, map_location=torch.device('cpu'))['epoch']
+        if bestepoch > maxepoch:
+            epoch = bestepoch
+            model_weights = f"{save_dir}{full_exp_id}_best_model.pth"
+        else:
+            epoch = maxepoch
+            model_weights = f"{save_dir}{full_exp_id}_epoch{epoch}.pth"
+        print(f"restarting {full_exp_id} from epoch {epoch}")
+        hyperparams = f"{save_dir}{full_exp_id}_hyperparams.json"
+        epoch +=1
+        with open(hyperparams, 'r') as f:
+            args_dict = json.load(f)
+            args = SimpleNamespace(**args_dict)
+            args.exp_id = full_exp_id
         
     else:
         # create dir for saving
+        print('TEST HERE')
         date = datetime.now().strftime('%Y-%m-%d')
-        full_exp_id = f"{args.train_partition}_train_{args.exp_id}_{date}"
+        if args.b_partition is None:
+            full_exp_id = f"{args.train_partition}_train_{args.exp_id}_{date}"
+        else:
+            full_exp_id = f"{args.train_partition}_{args.b_partition}_train_{args.exp_id}_{date}"
+        # set up necessary variables + directories
+        args.exp_id = full_exp_id
         epoch = 0
         model_weights = None
-        save_dir = f'{args.save_dir}finetune_results/{full_exp_id}/'
+        save_dir = f'{args.model_dir}/divshift_models/{full_exp_id}/'
+        print(save_dir)
         if not os.path.exists(save_dir):
             print(f"making dir {save_dir}")
             os.makedirs(save_dir)
@@ -443,4 +489,12 @@ if __name__ == "__main__":
         with open(json_fname, 'w') as f:
             json.dump(vars(args), f, indent=4)
 
-    train(args, save_dir, full_exp_id, model_weights, epoch)
+    train(args, save_dir, model_weights, epoch)
+    # if have partitions to test, run that inference here!
+    if args.test_partitions is not None:
+        # prep exp_id with correct name
+        for par in args.test_partitions:
+            if par not in partition_choices:
+                raise ValueError(f"WARNING: {par} is not a valid partition!")
+            inference(args, par)
+
