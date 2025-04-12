@@ -12,7 +12,7 @@ The code in this repository implements the data preparation, model training, and
 Download the DivShift-NAWC dataset from Hugging Face:  
 [https://huggingface.co/datasets/elenagsierra/DivShift-NAWC](https://huggingface.co/datasets/elenagsierra/DivShift-NAWC) .
 
-## Code Requirements
+## Run Code
 
 ### Requirements
 
