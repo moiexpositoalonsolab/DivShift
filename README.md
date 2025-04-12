@@ -2,6 +2,7 @@
 # DivShift: Exploring Domain-Specific Distribution Shifts in Large-Scale, Volunteer-Collected Biodiversity Datasets
 https://doi.org/10.1609/aaai.v39i27.35060
 
+# [Paper](https://ojs.aaai.org/index.php/AAAI/article/view/35060) | [Extended Version](https://arxiv.org/abs/2410.19816) | [Dataset](https://huggingface.co/datasets/elenagsierra/DivShift-NAWC)
 
 ## Overview
 
