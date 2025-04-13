@@ -1,4 +1,6 @@
-![DivShift logo](https://github.com/moiexpositoalonsolab/DivShift/blob/main/DivShift_logo.png)
+![DivShift logo](https://github.com/user-attachments/assets/87ed051a-464d-470a-83cd-57f49c15018b)
+
+
 # DivShift: Exploring Domain-Specific Distribution Shifts in Large-Scale, Volunteer-Collected Biodiversity Datasets
 https://doi.org/10.1609/aaai.v39i27.35060
 
