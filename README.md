@@ -72,4 +72,4 @@ python3 src/supervised_test.py --device 0 --data_dir [your_data_directory] --exp
 }
 ```
 
-
+[![DOI](https://zenodo.org/badge/834920872.svg)](https://zenodo.org/badge/latestdoi/834920872)
